@@ -35,6 +35,7 @@ Ngay cap nhat: 2026-05-26
 | TASK-030 technical debt | Done | `reports/TECHNICAL_DEBT.md`. |
 | TASK-036 Springer research roadmap | Done | `reports/SPRINGER_RESEARCH_ROADMAP.md`. |
 | TASK-037 statistical inference | Done | `statsmodels==0.14.6`, `src/11_statistical_analysis.py`, statistical result artifacts. |
+| TASK-038 Temporal risk index | Done | `src/12_temporal_risk_index.py`, method doc, local generated risk CSV ignored by Git. |
 
 ## Ket qua kiem thu
 
@@ -133,6 +134,8 @@ python src/11_statistical_analysis.py
 
 ### TASK-038 - Temporal Posture Risk Index
 
+Trang thai: Done.
+
 Pham vi de xuat:
 
 - Tao `src/12_temporal_risk_index.py`
@@ -145,4 +148,27 @@ Verify:
 
 ```powershell
 python src/12_temporal_risk_index.py
+```
+
+Ket qua local hien tai:
+
+- 50 phien demo.
+- Risk distribution: LOW 19, MEDIUM 25, HIGH 6, CRITICAL 0.
+- Highest risk index: 61.053.
+
+Ghi chu: `session_risk_index.csv`, `session_risk_daily_summary.csv`, `temporal_risk_summary.txt` khong commit vi sinh tu log phien local.
+
+### TASK-039 - Model card va reproducibility metadata
+
+Pham vi de xuat:
+
+- Tao `reports/MODEL_CARD.md`
+- Neu can tao `src/13_generate_model_card.py`
+
+Muc tieu: ghi model/scaler version, dataset path, commit hash, feature schema, threshold, sklearn/tensorflow version, intended use, limitations.
+
+Verify:
+
+```powershell
+Get-Content reports/MODEL_CARD.md
 ```

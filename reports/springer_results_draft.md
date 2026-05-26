@@ -74,6 +74,21 @@ P-value: `2.19314e-60`.
 
 This indicates a statistically significant difference between ANN and rule-based correctness on the same external frames. This result is still frame-level and must not be treated as a substitute for video-wise/person-wise validation.
 
+## Temporal Posture Risk Index
+
+Source: local run of `python src/12_temporal_risk_index.py`
+
+The current local SQLite database contains 50 demo sessions. The generated TPRI distribution was:
+
+| Risk level | Session count |
+|---|---:|
+| LOW | 19 |
+| MEDIUM | 25 |
+| HIGH | 6 |
+| CRITICAL | 0 |
+
+The highest observed session-level score was `61.053` (HIGH). These values summarize local application logs and should be reported separately from model classification metrics. The generated CSV outputs are intentionally not committed because they derive from local session logs.
+
 ## Interpretation
 
 The local frame-wise result is very high. This should be reported with caution because adjacent frames from the same source video can be visually similar. A video-wise or person-wise split is needed to estimate generalization more rigorously.

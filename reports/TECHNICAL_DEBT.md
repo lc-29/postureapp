@@ -7,6 +7,7 @@
 | Testing | Some dependencies may be missing on a fresh machine | Document Python version and run full install test. |
 | GUI | Manual QA not filled yet | Execute `reports/GUI_QA_CHECKLIST.md`. |
 | Evaluation | External/statistical metrics must be regenerated after model changes | Run `python src/6_evaluate_external.py` and `python src/11_statistical_analysis.py`. |
+| Session risk | Temporal risk index depends on local SQLite log quality | Run `python src/12_temporal_risk_index.py` and inspect `data_quality_note`. |
 
 ## P1 - Important before paper submission
 

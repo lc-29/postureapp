@@ -20,3 +20,6 @@ models/tmp_smoke/
 reports/results/session_statistics.csv
 reports/results/daily_statistics.csv
 reports/results/posture_log_statistics.csv
+reports/results/session_risk_index.csv
+reports/results/session_risk_daily_summary.csv
+reports/results/temporal_risk_summary.txt

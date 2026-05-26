@@ -8,4 +8,17 @@ A rule-based baseline is also implemented for interpretability. It estimates geo
 
 The real-time application maintains posture state over time. If incorrect posture persists beyond a configured duration, the app can trigger an audio warning. Sessions, frame counts, warning counts, and daily summaries are stored in SQLite. This logging layer supports later export for reports and demonstration.
 
+To summarize session-level ergonomic behavior, the system computes a Temporal Posture Risk Index (TPRI). TPRI combines four normalized temporal components: incorrect posture duration ratio, long continuous incorrect-posture ratio, warning-rate ratio, and no-person/low-confidence ratio. The default score is:
+
+```text
+TPRI = 100 * (
+  0.40 * incorrect_time_ratio
+  + 0.25 * long_bad_posture_ratio
+  + 0.20 * warning_rate_norm
+  + 0.15 * no_person_or_low_confidence_ratio
+)
+```
+
+The score is interpreted as LOW, MEDIUM, HIGH, or CRITICAL using fixed ranges. It is intended for comparing sessions inside this application and for reporting temporal behavior, not for clinical diagnosis.
+
 The system is an assistive ergonomic reminder. It is not intended for medical diagnosis or clinical decision-making.

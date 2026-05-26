@@ -21,6 +21,7 @@
 - [ ] External metrics saved in `reports/results/`.
 - [ ] Threshold sweep saved.
 - [ ] Statistical analysis saved: confidence interval and McNemar test.
+- [ ] Temporal risk index generated locally with `python src/12_temporal_risk_index.py`.
 - [ ] Video-wise metadata plan documented.
 
 ## Demo

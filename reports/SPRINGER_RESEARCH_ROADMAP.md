@@ -117,6 +117,8 @@ Done khi:
 
 ### TASK-S06 - Them Temporal Posture Risk Index
 
+Trang thai: Done for implementation and local output generation.
+
 Pham vi de xuat:
 
 - `src/12_temporal_risk_index.py`
@@ -143,6 +145,16 @@ Can lam:
 Done khi:
 
 - Co output CSV va mot doan Method/Results cho chi so nay.
+
+Da co:
+
+- `src/12_temporal_risk_index.py`
+- `reports/TEMPORAL_RISK_INDEX_METHOD.md`
+- Local generated `reports/results/session_risk_index.csv`
+- Local generated `reports/results/session_risk_daily_summary.csv`
+- Local generated `reports/results/temporal_risk_summary.txt`
+
+Ghi chu: cac output local risk index bi ignore trong Git vi duoc sinh tu log phien tren may demo.
 
 ## 3. Nhiem vu danh gia khoa hoc
 
