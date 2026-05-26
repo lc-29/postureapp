@@ -33,6 +33,8 @@ Ngay cap nhat: 2026-05-26
 | TASK-028 related work todo | Done | `reports/RELATED_WORK_TODO.md`. |
 | TASK-029 final checklist | Done | `reports/FINAL_DELIVERY_CHECKLIST.md`. |
 | TASK-030 technical debt | Done | `reports/TECHNICAL_DEBT.md`. |
+| TASK-036 Springer research roadmap | Done | `reports/SPRINGER_RESEARCH_ROADMAP.md`. |
+| TASK-037 statistical inference | Done | `statsmodels==0.14.6`, `src/11_statistical_analysis.py`, statistical result artifacts. |
 
 ## Ket qua kiem thu
 
@@ -96,3 +98,51 @@ Verify: checklist co ngay test/nguoi test/ket qua.
 Pham vi: `reports/RELATED_WORK_TODO.md`, `reports/springer_paper_outline.md`.
 
 Muc tieu: them citation that cho MediaPipe Pose, ergonomic posture, posture detection ML, real-time feedback. Khong dung citation tu bia.
+
+### TASK-036 - Hoan thien roadmap nghien cuu Springer
+
+Pham vi: `reports/SPRINGER_RESEARCH_ROADMAP.md`
+
+Trang thai: Done.
+
+Muc tieu: chuyen cac viec con lai thanh ke hoach nghien cuu co RQ, hypotheses, diem moi, bang/hinh, evaluation va dieu kien san sang nop.
+
+Verify:
+
+```powershell
+Get-Content reports/SPRINGER_RESEARCH_ROADMAP.md
+```
+
+### TASK-037 - Tich hop thong ke inference bang statsmodels
+
+Pham vi:
+
+- `requirements.txt`
+- `src/11_statistical_analysis.py`
+- `reports/results/statistical_analysis.txt`
+
+Trang thai: Done.
+
+Muc tieu: them Wilson accuracy CI va McNemar paired test cho ANN vs rule-based tren external set.
+
+Verify:
+
+```powershell
+python src/11_statistical_analysis.py
+```
+
+### TASK-038 - Temporal Posture Risk Index
+
+Pham vi de xuat:
+
+- Tao `src/12_temporal_risk_index.py`
+- Tao `reports/results/session_risk_index.csv`
+- Cap nhat Method/Results.
+
+Muc tieu: tao diem moi cap phien lam viec tu SQLite/log, khong chi dung metric frame-level.
+
+Verify:
+
+```powershell
+python src/12_temporal_risk_index.py
+```

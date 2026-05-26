@@ -88,6 +88,12 @@ python src/6_evaluate_external.py
 
 Ket qua duoc luu trong `reports/results/`.
 
+Phan tich thong ke cho bao cao:
+
+```powershell
+python src/11_statistical_analysis.py
+```
+
 ## Luu y tai lap
 
 - Seed mac dinh: `42`.
@@ -103,5 +109,5 @@ python src/2_extract_features.py --include-metadata --output dataset/posture_dat
 
 ```powershell
 python -m pytest tests
-python -m py_compile src/1_rule_based_baseline.py src/2_extract_features.py src/3_database_setup.py src/4_main_desktop_app.py src/5_train_ann_local.py src/6_evaluate_external.py src/7_video_wise_evaluation.py src/8_compare_algorithms.py src/9_ablation_study.py src/10_export_statistics.py src/posture_baseline.py
+python -m py_compile src/1_rule_based_baseline.py src/2_extract_features.py src/3_database_setup.py src/4_main_desktop_app.py src/5_train_ann_local.py src/6_evaluate_external.py src/7_video_wise_evaluation.py src/8_compare_algorithms.py src/9_ablation_study.py src/10_export_statistics.py src/11_statistical_analysis.py src/posture_baseline.py
 ```

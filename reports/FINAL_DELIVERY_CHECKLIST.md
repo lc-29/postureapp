@@ -20,6 +20,7 @@
 - [ ] `python src/6_evaluate_external.py` run.
 - [ ] External metrics saved in `reports/results/`.
 - [ ] Threshold sweep saved.
+- [ ] Statistical analysis saved: confidence interval and McNemar test.
 - [ ] Video-wise metadata plan documented.
 
 ## Demo

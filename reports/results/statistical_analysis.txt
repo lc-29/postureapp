@@ -1,0 +1,26 @@
+Statistical Analysis
+====================
+
+Dataset: D:\posture_detection_app\dataset\posture_external_test_2fps.csv
+Samples: 1697
+Decision threshold: 0.5000
+
+Accuracy with Wilson 95% confidence intervals:
+ algorithm    n  correct  accuracy  accuracy_ci_low  accuracy_ci_high  precision   recall       f1
+       ANN 1697     1346  0.793164         0.773242          0.811763   0.945988 0.659849 0.777425
+Rule-based 1697      961  0.566293         0.542591          0.589697   0.584427 0.719053 0.644788
+
+McNemar paired test on sample-level correctness:
+Rows: ANN correctness, columns: rule-based correctness.
+Table [[ANN correct and rule correct, ANN correct and rule incorrect],
+       [ANN incorrect and rule correct, ANN incorrect and rule incorrect]]:
+[[856 490]
+ [105 246]]
+
+Statistic: 105.000000
+P-value: 2.19314e-60
+
+Interpretation note:
+McNemar evaluates whether the two paired classifiers have the same error
+probability on the same external samples. It does not replace video-wise or
+person-wise validation.

@@ -52,6 +52,28 @@ Source: `reports/results/algorithm_comparison.csv`
 | ANN | posture_external_test_2fps.csv | 0.793164 | 0.945988 | 0.659849 | 0.777425 |
 | Rule-based | posture_external_test_2fps.csv | 0.566293 | 0.584427 | 0.719053 | 0.644788 |
 
+## Statistical analysis
+
+Source: `reports/results/statistical_analysis.txt`
+
+Accuracy with Wilson 95% confidence interval:
+
+| Algorithm | Accuracy | 95% CI |
+|---|---:|---:|
+| ANN | 0.793164 | [0.773242, 0.811763] |
+| Rule-based | 0.566293 | [0.542591, 0.589697] |
+
+McNemar paired test on sample-level correctness:
+
+```text
+[[856 490]
+ [105 246]]
+```
+
+P-value: `2.19314e-60`.
+
+This indicates a statistically significant difference between ANN and rule-based correctness on the same external frames. This result is still frame-level and must not be treated as a substitute for video-wise/person-wise validation.
+
 ## Interpretation
 
 The local frame-wise result is very high. This should be reported with caution because adjacent frames from the same source video can be visually similar. A video-wise or person-wise split is needed to estimate generalization more rigorously.
@@ -61,3 +83,5 @@ The local frame-wise result is very high. This should be reported with caution b
 - External metrics.
 - Threshold sweep.
 - Full ablation study with repeat runs.
+- Video-wise/person-wise evaluation.
+- Runtime benchmark.

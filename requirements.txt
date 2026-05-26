@@ -2,7 +2,7 @@ opencv-contrib-python==4.11.0.86
 mediapipe==0.10.21
 numpy==1.26.4
 pandas
-scikit-learn
+scikit-learn==1.6.1
 tensorflow==2.16.2
 matplotlib
 customtkinter
@@ -10,3 +10,4 @@ pillow
 playsound==1.2.2
 joblib
 pytest
+statsmodels==0.14.6

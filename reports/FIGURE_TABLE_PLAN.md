@@ -22,4 +22,5 @@
 | External metrics | `reports/results/external_metrics.txt` | Can chay script |
 | Threshold sweep | `reports/results/external_threshold_sweep.csv` | Can chay script |
 | Rule-based vs ANN | `reports/results/algorithm_comparison.csv` | Can lam tiep |
+| Statistical inference | `reports/results/statistical_accuracy_ci.csv`, `reports/results/paired_mcnemar_table.csv` | Co san |
 | Ablation | `reports/results/ablation_results.csv` | Can lam tiep |
