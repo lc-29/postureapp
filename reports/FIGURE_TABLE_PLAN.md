@@ -25,3 +25,4 @@
 | Statistical inference | `reports/results/statistical_accuracy_ci.csv`, `reports/results/paired_mcnemar_table.csv` | Co san |
 | Temporal risk index | Local generated `reports/results/session_risk_index.csv`; method in `reports/TEMPORAL_RISK_INDEX_METHOD.md` | Co script, local output ignored |
 | Ablation | `reports/results/ablation_results.csv` | Can lam tiep |
+| Literature metric comparison | `reports/LITERATURE_METRICS_COMPARISON.md`, `reports/literature_metrics_comparison.csv` | Co san |

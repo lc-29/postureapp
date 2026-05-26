@@ -302,6 +302,14 @@ Can co citation that cho:
 
 Khong duoc bia citation.
 
+Da co artifact dau vao:
+
+- `reports/LITERATURE_METRICS_COMPARISON.md`
+- `reports/literature_metrics_comparison.csv`
+- `reports/RELATED_PAPERS.bib`
+
+Ghi chu viet bai: chi trinh bay bang so sanh la contextual comparison. Khong claim state-of-the-art vi cac nghien cuu dung dataset, sensor, nhan va protocol khac nhau.
+
 ### TASK-S18 - Materials and Methods
 
 Can co:

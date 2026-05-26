@@ -93,6 +93,12 @@ The highest observed session-level score was `61.053` (HIGH). These values summa
 
 The local frame-wise result is very high. This should be reported with caution because adjacent frames from the same source video can be visually similar. A video-wise or person-wise split is needed to estimate generalization more rigorously.
 
+## Literature comparison context
+
+Source: `reports/LITERATURE_METRICS_COMPARISON.md`
+
+The current external ANN result should be framed as a low-cost webcam/MediaPipe baseline with external-set testing, statistical comparison against a rule-based baseline, and Temporal Posture Risk Index support. It should not be framed as state-of-the-art because related studies report higher values under different modalities and protocols, including pressure-sensor systems above 98%, RGB-D hierarchical models around 91.47% for base sitting posture grouping, and MediaPipe/camera studies around 85.18%-92.07% or higher depending on view and protocol.
+
 ## Pending result tables
 
 - External metrics.
@@ -100,3 +106,4 @@ The local frame-wise result is very high. This should be reported with caution b
 - Full ablation study with repeat runs.
 - Video-wise/person-wise evaluation.
 - Runtime benchmark.
+- Literature comparison table.
