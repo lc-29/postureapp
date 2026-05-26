@@ -65,10 +65,14 @@ def load_and_validate_dataset(csv_path: Path) -> tuple[pd.DataFrame, pd.DataFram
     if "label" not in df.columns:
         raise ValueError("CSV phai co cot 'label'.")
 
-    feature_count = df.drop(columns=["label"]).shape[1]
-    if feature_count != NUM_FEATURES:
+    feature_columns = [
+        column
+        for column in df.columns
+        if column.startswith("landmark_") and column.rsplit("_", 1)[-1] in {"x", "y", "z"}
+    ]
+    if len(feature_columns) != NUM_FEATURES:
         raise ValueError(
-            f"CSV phai co {NUM_FEATURES} feature, nhung dang co {feature_count}."
+            f"CSV phai co {NUM_FEATURES} landmark feature, nhung dang co {len(feature_columns)}."
         )
 
     missing_count = int(df.isnull().sum().sum())
@@ -80,7 +84,7 @@ def load_and_validate_dataset(csv_path: Path) -> tuple[pd.DataFrame, pd.DataFram
     if unique_labels != {0, 1}:
         raise ValueError(f"Label chi duoc gom 0 va 1. Hien co: {sorted(unique_labels)}")
 
-    X = df.drop(columns=["label"]).astype(np.float32)
+    X = df[feature_columns].astype(np.float32)
     y = df["label"].astype(int)
     return df, X, y
 
@@ -182,6 +186,28 @@ def train(args: argparse.Namespace) -> None:
     print("Output dir:", output_dir)
 
     df, X, y = load_and_validate_dataset(csv_path)
+
+    if args.max_rows is not None:
+        if args.max_rows < 20:
+            raise ValueError("--max-rows phai >= 20 de co du mau train/validation/test.")
+        sample_size = min(args.max_rows, len(df))
+        if sample_size < len(df):
+            df, _ = train_test_split(
+                df,
+                train_size=sample_size,
+                random_state=SEED,
+                stratify=df["label"],
+            )
+            df = df.sample(frac=1, random_state=SEED).reset_index(drop=True)
+        feature_columns = [
+            column
+            for column in df.columns
+            if column.startswith("landmark_") and column.rsplit("_", 1)[-1] in {"x", "y", "z"}
+        ]
+        X = df[feature_columns].astype(np.float32)
+        y = df["label"].astype(int)
+        print(f"Smoke/subset mode: using {len(df)} rows.")
+
     print("Dataset shape:", df.shape)
     print("Label distribution:")
     print(y.value_counts().sort_index().to_string())
@@ -344,6 +370,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--patience", type=int, default=15)
+    parser.add_argument(
+        "--max-rows",
+        type=int,
+        default=None,
+        help="Lay toi da N dong de smoke test pipeline train nhanh.",
+    )
     parser.add_argument(
         "--threshold",
         type=float,

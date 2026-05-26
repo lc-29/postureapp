@@ -1,6 +1,4 @@
-"""
-Cấu hình đường dẫn và tham số chung của hệ thống.
-"""
+"""Cau hinh duong dan va tham so chung cua he thong."""
 
 from pathlib import Path
 

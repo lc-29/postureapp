@@ -1,0 +1,20 @@
+External Evaluation Metrics
+===========================
+
+Dataset: D:\posture_detection_app\dataset\posture_external_test_2fps.csv
+Dataset shape: (1697, 100)
+Model: D:\posture_detection_app\models\ann_best.keras
+Scaler: D:\posture_detection_app\models\scaler.pkl
+
+Decision threshold: 0.5000
+Accuracy : 0.793164
+Precision: 0.945988
+Recall   : 0.659849
+F1-score : 0.777425
+
+Confusion matrix [[TN, FP], [FN, TP]]:
+[[733  35]
+ [316 613]]
+
+Best threshold by F1 in sweep:
+threshold=0.10, accuracy=0.804361, precision=0.912863, recall=0.710441, f1=0.799031

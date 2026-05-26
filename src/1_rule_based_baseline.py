@@ -431,6 +431,16 @@ def classify_posture_rule_based(
     return "CORRECT", []
 
 
+# Dung module chung de baseline script va GUI co cung logic phan loai.
+try:
+    from posture_baseline import (
+        classify_posture_rule_based,
+        extract_posture_features,
+    )
+except ImportError:
+    pass
+
+
 def draw_text(
     frame: Any,
     text: str,

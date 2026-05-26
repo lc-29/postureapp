@@ -66,7 +66,7 @@ def get_video_files(folder: Path) -> list[Path]:
     return sorted(video_files, key=lambda path: path.name.lower())
 
 
-def generate_feature_columns() -> list[str]:
+def generate_feature_columns(include_metadata: bool = False) -> list[str]:
     """
     Tao danh sach cot CSV: 99 feature landmark + cot label.
 
@@ -82,6 +82,9 @@ def generate_feature_columns() -> list[str]:
                 f"landmark_{landmark_index}_z",
             ]
         )
+
+    if include_metadata:
+        columns.extend(["source_video", "frame_index", "sample_fps", "video_fps"])
 
     columns.append("label")
     return columns
@@ -135,14 +138,15 @@ def process_video(
     label: int,
     pose: Any,
     sample_fps: float = 2.0,
-) -> tuple[list[list[float]], dict[str, int | float | str]]:
+    include_metadata: bool = False,
+) -> tuple[list[list[Any]], dict[str, int | float | str]]:
     """
     Xu ly mot video va tra ve cac row CSV cung thong ke.
 
     Moi video duoc lay mau theo sample_fps. Mac dinh sample_fps=2.0 nghia la
     lay khoang 2 frame moi giay de giam lap du lieu qua nhieu.
     """
-    rows: list[list[float]] = []
+    rows: list[list[Any]] = []
     stats = create_empty_stats(label, video_path)
 
     if sample_fps <= 0:
@@ -189,7 +193,21 @@ def process_video(
             if results.pose_landmarks:
                 vector = extract_landmark_vector(results.pose_landmarks)
                 if vector is not None:
-                    rows.append(vector + [label])
+                    if include_metadata:
+                        rows.append(
+                            vector
+                            + [
+                                str(video_path.relative_to(BASE_DIR))
+                                if video_path.is_relative_to(BASE_DIR)
+                                else str(video_path),
+                                frame_index,
+                                float(sample_fps),
+                                float(video_fps),
+                                label,
+                            ]
+                        )
+                    else:
+                        rows.append(vector + [label])
                     stats["valid_frames"] = int(stats["valid_frames"]) + 1
                 else:
                     stats["skipped_frames"] = int(stats["skipped_frames"]) + 1
@@ -279,12 +297,14 @@ def process_dataset(
     input_root: str | Path | None = None,
     sample_fps: float = 2.0,
     output_csv: Path = OUTPUT_CSV,
+    include_metadata: bool = False,
 ) -> None:
     """
     Xu ly toan bo dataset correct/incorrect va luu CSV.
 
-    CSV chinh chi gom 99 feature + label de train ANN don gian. Chua them
-    source_video/frame_index trong buoc nay.
+    Mac dinh CSV chi gom 99 feature + label de train ANN don gian. Khi
+    include_metadata=True, CSV co them source_video/frame_index/sample_fps/video_fps
+    de phuc vu danh gia video-wise.
     """
     output_csv = Path(output_csv)
     if not output_csv.is_absolute():
@@ -312,7 +332,7 @@ def process_dataset(
         print(f"Hay kiem tra thu muc {correct_dir} va {incorrect_dir}.")
         return
 
-    all_rows: list[list[float]] = []
+    all_rows: list[list[Any]] = []
     correct_stats = {
         "total_read_frames": 0,
         "sampled_frames": 0,
@@ -334,12 +354,24 @@ def process_dataset(
         min_tracking_confidence=0.5,
     ) as pose:
         for video_path in correct_videos:
-            rows, stats = process_video(video_path, label=0, pose=pose, sample_fps=sample_fps)
+            rows, stats = process_video(
+                video_path,
+                label=0,
+                pose=pose,
+                sample_fps=sample_fps,
+                include_metadata=include_metadata,
+            )
             all_rows.extend(rows)
             add_stats(correct_stats, stats)
 
         for video_path in incorrect_videos:
-            rows, stats = process_video(video_path, label=1, pose=pose, sample_fps=sample_fps)
+            rows, stats = process_video(
+                video_path,
+                label=1,
+                pose=pose,
+                sample_fps=sample_fps,
+                include_metadata=include_metadata,
+            )
             all_rows.extend(rows)
             add_stats(incorrect_stats, stats)
 
@@ -350,11 +382,12 @@ def process_dataset(
         )
         return
 
-    columns = generate_feature_columns()
+    columns = generate_feature_columns(include_metadata=include_metadata)
     df = pd.DataFrame(all_rows, columns=columns)
 
-    if len(df.columns) != NUM_FEATURES + 1 or df.columns[-1] != "label":
-        print("ERROR: Cau truc CSV khong dung 99 dac trung + label.")
+    expected_column_count = NUM_FEATURES + 1 + (4 if include_metadata else 0)
+    if len(df.columns) != expected_column_count or df.columns[-1] != "label":
+        print("ERROR: Cau truc CSV khong dung 99 dac trung + metadata tuy chon + label.")
         return
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -404,6 +437,14 @@ def parse_args() -> argparse.Namespace:
         default=str(OUTPUT_CSV),
         help="Duong dan file CSV dau ra.",
     )
+    parser.add_argument(
+        "--include-metadata",
+        action="store_true",
+        help=(
+            "Them source_video, frame_index, sample_fps va video_fps vao CSV. "
+            "Dung cho video-wise/person-wise evaluation."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -414,6 +455,7 @@ def main() -> None:
             input_root=args.input_root,
             sample_fps=args.sample_fps,
             output_csv=Path(args.output),
+            include_metadata=args.include_metadata,
         )
     except KeyboardInterrupt:
         print("\nDa dung chuong trinh theo yeu cau nguoi dung.")

@@ -9,3 +9,4 @@ customtkinter
 pillow
 playsound==1.2.2
 joblib
+pytest

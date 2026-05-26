@@ -1,18 +1,14 @@
-"""
-Các hàm tiện ích dùng chung:
-- Tính góc
-- Chuẩn hóa landmark
-- Kiểm tra đường dẫn
-- Xử lý lỗi an toàn
-"""
+"""Cac ham tien ich dung chung trong project."""
 
 import math
 
 
 def calculate_angle(a, b, c):
     """
-    Tính góc ABC từ 3 điểm a, b, c.
-    Mỗi điểm có dạng (x, y).
+    Tinh goc ABC tu 3 diem a, b, c.
+
+    Moi diem co dang `(x, y)`. Neu input khong hop le hoac mot vector co do dai
+    bang 0, ham tra ve 0.0 de caller khong bi crash trong luong realtime.
     """
     try:
         ba = (a[0] - b[0], a[1] - b[1])

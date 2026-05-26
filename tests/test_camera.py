@@ -1,3 +1,12 @@
+"""Manual camera/video smoke test.
+
+File nay khong chua pytest test tu dong de tranh mo webcam trong CI/local pytest.
+Chay thu cong:
+
+    python tests/test_camera.py --source 0
+    python tests/test_camera.py --source path/to/video.mp4
+"""
+
 import argparse
 import os
 import sys
@@ -31,20 +40,20 @@ def _resolve_source(source):
     return source_str, "Video File"
 
 
-def test_camera(source=0):
+def manual_camera_check(source=0):
     source_value, source_label = _resolve_source(source)
     cap = cv2.VideoCapture(source_value)
 
     if not cap.isOpened():
-        print("Không mở được nguồn video.")
+        print("Khong mo duoc nguon video.")
         return False
 
-    print(f"Mở nguồn video thành công: {source_label}. Nhấn Q để thoát.")
+    print(f"Mo nguon video thanh cong: {source_label}. Nhan Q de thoat.")
 
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Không đọc được frame.")
+            print("Khong doc duoc frame.")
             break
 
         cv2.imshow(f"Test {source_label}", frame)
@@ -59,17 +68,17 @@ def test_camera(source=0):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test webcam (0), IP camera (rtsp/http), hoặc file video."
+        description="Test webcam (0), IP camera (rtsp/http), hoac file video."
     )
     parser.add_argument(
         "--source",
         "-s",
         default="0",
-        help="0 cho webcam, URL cho IP camera, hoặc duong dan file video.",
+        help="0 cho webcam, URL cho IP camera, hoac duong dan file video.",
     )
     args = parser.parse_args()
 
-    ok = test_camera(args.source)
+    ok = manual_camera_check(args.source)
     if not ok:
         sys.exit(1)
 

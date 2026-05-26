@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import cv2
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,9 @@ def check_hevc_video(video_path=VIDEO_PATH):
 
 
 def test_video_hevc_can_be_decoded_by_opencv():
+    if not VIDEO_PATH.is_file():
+        pytest.skip(f"Manual HEVC sample does not exist: {VIDEO_PATH}")
+
     assert check_hevc_video()
 
 

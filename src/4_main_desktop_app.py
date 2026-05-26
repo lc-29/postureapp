@@ -535,6 +535,16 @@ def classify_posture_rule_based(
     return "CORRECT", []
 
 
+# Dung module chung de GUI va baseline script co cung logic phan loai.
+try:
+    from posture_baseline import (
+        classify_posture_rule_based,
+        extract_posture_features,
+    )
+except ImportError:
+    pass
+
+
 class PostureApp(ctk.CTk):
     """Ung dung desktop phat hien tu the lam viec realtime."""
 

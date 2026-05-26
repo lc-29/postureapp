@@ -12,7 +12,11 @@ dataset/external_videos/
 models/*.keras
 models/*.h5
 models/*.pkl
+models/tmp_smoke/
 *.mp4
 *.log
 .DS_Store
 .ipynb_checkpoints/
+reports/results/session_statistics.csv
+reports/results/daily_statistics.csv
+reports/results/posture_log_statistics.csv
