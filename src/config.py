@@ -2,14 +2,18 @@
 
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+try:
+    from runtime_paths import app_base_dir, resource_path, writable_database_path
+except ImportError:
+    from src.runtime_paths import app_base_dir, resource_path, writable_database_path
 
-ASSETS_DIR = BASE_DIR / "assets"
+BASE_DIR = app_base_dir()
+ASSETS_DIR = resource_path("assets")
 SOUNDS_DIR = ASSETS_DIR / "sounds"
-DATABASE_PATH = BASE_DIR / "database" / "posture_app.db"
+DATABASE_PATH = writable_database_path()
 DATASET_CSV_PATH = BASE_DIR / "dataset" / "posture_data.csv"
-MODEL_PATH = BASE_DIR / "models" / "ann_best.keras"
-SCALER_PATH = BASE_DIR / "models" / "scaler.pkl"
+MODEL_PATH = resource_path(Path("models") / "ann_best.keras")
+SCALER_PATH = resource_path(Path("models") / "scaler.pkl")
 
 CAMERA_INDEX = 0
 WARNING_SECONDS = 5

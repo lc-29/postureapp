@@ -5,6 +5,9 @@ __pycache__/
 *.pyd
 .env
 .vscode/
+build/
+dist/
+release/
 database/*.db
 dataset/processed/
 dataset/raw_videos/

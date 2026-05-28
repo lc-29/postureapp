@@ -22,3 +22,29 @@ Khong tu bia citation. Dien bang nay bang nguon that truoc khi nop bai.
 - BibTeX cho bai Springer: `reports/RELATED_PAPERS.bib`
 
 Ghi chu: khong dung cac so lieu nay nhu leaderboard truc tiep. Moi bai co dataset, nhan, sensor va split protocol khac nhau. Cac dong co `indexed official page` can mo full PDF lai truoc khi nop ban thao cuoi.
+# Related Work Verification Update
+
+Ngay cap nhat: 2026-05-27
+
+## Trang thai da chuan hoa
+
+- Bang so sanh chinh nam trong `reports/LITERATURE_METRICS_COMPARISON.md`.
+- BibTeX nhap nhanh nam trong `reports/RELATED_PAPERS.bib`.
+- Cac metric literature chi duoc dung nhu contextual comparison, khong dung nhu leaderboard vi khac sensor, dataset, split va label schema.
+
+## Nguon da dung de doi chieu
+
+- MediaPipe Pose Landmarker official docs: https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker
+- Estrada et al., Applied Sciences 2023: https://www.mdpi.com/2076-3417/13/9/5402
+- Kulikajevas et al., PeerJ Computer Science 2021: https://doaj.org/article/203c4c4fa85d4693a21acf6b98b29357
+- Tsai et al., Sensors 2023: https://www.mdpi.com/1424-8220/23/13/5894/html
+- Feradov et al., Computers 2022: https://www.mdpi.com/2073-431X/11/7/116
+- Luna-Perejon et al., Electronics 2021: https://www.mdpi.com/2079-9292/10/15/1825
+- RULA original paper record: https://pubmed.ncbi.nlm.nih.gov/15676903/
+- Smart sensing chair review: https://pmc.ncbi.nlm.nih.gov/articles/PMC11086066/
+
+## Claim rule
+
+Khong viet "our method outperforms previous works". Chi viet:
+
+> The current ANN outperformed the local rule-based baseline on the same external frame-level set. Literature values are reported for context because sensing modality, datasets, label schemes, and validation protocols differ.

@@ -46,11 +46,11 @@ REQUIRED_INDEXES = [
 ]
 
 
-def get_db_path() -> Path:
+def get_db_path(db_path: Path | None = None) -> Path:
     """
     Trả về đường dẫn database SQLite theo thư mục gốc project.
     """
-    return DATABASE_PATH
+    return db_path if db_path is not None else DATABASE_PATH
 
 
 def create_connection(db_path: Path) -> sqlite3.Connection:
@@ -105,6 +105,9 @@ def create_tables(connection: sqlite3.Connection) -> None:
             nguonCamera TEXT NOT NULL DEFAULT '0',
             duongDanModel TEXT NOT NULL DEFAULT 'models/ann_best.keras',
             duongDanScaler TEXT NOT NULL DEFAULT 'models/scaler.pkl',
+            cheDoGiaoDien TEXT NOT NULL DEFAULT 'light',
+            smoothingWindowFrames INTEGER NOT NULL DEFAULT 5,
+            smoothingThreshold REAL NOT NULL DEFAULT 0.5,
             ngayCapNhat TEXT NOT NULL,
             FOREIGN KEY (maNguoiDung)
                 REFERENCES NguoiDung(maNguoiDung)
@@ -307,9 +310,12 @@ def insert_default_data(connection: sqlite3.Connection) -> None:
                 nguonCamera,
                 duongDanModel,
                 duongDanScaler,
+                cheDoGiaoDien,
+                smoothingWindowFrames,
+                smoothingThreshold,
                 ngayCapNhat
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 admin_id,
@@ -320,6 +326,9 @@ def insert_default_data(connection: sqlite3.Connection) -> None:
                 "0",
                 "models/ann_best.keras",
                 "models/scaler.pkl",
+                "light",
+                5,
+                0.5,
                 now,
             ),
         )
@@ -369,11 +378,11 @@ def insert_default_data(connection: sqlite3.Connection) -> None:
         )
 
 
-def init_database(reset: bool = True) -> Path:
+def init_database(reset: bool = True, db_path: Path | None = None) -> Path:
     """
     Khởi tạo CSDL SQLite, có thể reset file cũ trước khi tạo lại.
     """
-    db_path = get_db_path()
+    db_path = get_db_path(db_path)
     connection = None
 
     try:

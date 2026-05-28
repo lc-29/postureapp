@@ -2,7 +2,7 @@
 Ung dung desktop phat hien loi tu the lam viec qua webcam/video.
 
 Chuc nang chinh:
-- Giao dien CustomTkinter dark mode.
+- Giao dien CustomTkinter light mode.
 - Mo webcam, camera IP hoac tep video bang OpenCV.
 - Trich xuat 33 landmark MediaPipe Pose thanh vector 99 dac trung.
 - Du doan tu the dung/sai bang ANN da train va StandardScaler.
@@ -15,12 +15,15 @@ from __future__ import annotations
 
 import os
 import math
+import subprocess
 import sqlite3
+import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from types import SimpleNamespace
 from typing import Any
 
@@ -32,8 +35,30 @@ import customtkinter as ctk
 import joblib
 import mediapipe as mp
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 from tensorflow.keras.models import load_model
+
+try:
+    from statistics_service import get_dashboard_data
+except ImportError:
+    from src.statistics_service import get_dashboard_data
+
+try:
+    from runtime_paths import (
+        app_base_dir,
+        ensure_runtime_database,
+        is_frozen,
+        resource_path,
+        writable_database_path,
+    )
+except ImportError:
+    from src.runtime_paths import (
+        app_base_dir,
+        ensure_runtime_database,
+        is_frozen,
+        resource_path,
+        writable_database_path,
+    )
 
 try:
     import matplotlib.pyplot as plt
@@ -43,11 +68,11 @@ except ImportError:
     FigureCanvasTkAgg = None
 
 
-BASE_DIR = Path(__file__).resolve().parents[1]
-DATABASE_PATH = BASE_DIR / "database" / "posture_app.db"
-MODEL_PATH = BASE_DIR / "models" / "ann_best.keras"
-SCALER_PATH = BASE_DIR / "models" / "scaler.pkl"
-ALARM_PATH = BASE_DIR / "assets" / "sounds" / "alarm.wav"
+BASE_DIR = app_base_dir()
+DATABASE_PATH = writable_database_path()
+MODEL_PATH = resource_path(Path("models") / "ann_best.keras")
+SCALER_PATH = resource_path(Path("models") / "scaler.pkl")
+ALARM_PATH = resource_path(Path("assets") / "sounds" / "alarm.wav")
 
 NUM_POSE_LANDMARKS = 33
 FEATURES_PER_LANDMARK = 3
@@ -81,20 +106,86 @@ UPDATE_DELAY_MS = 10
 CAPTURE_READ_RETRY_DELAY = 0.005
 CAPTURE_FAIL_LIMIT = 90
 FONT = cv2.FONT_HERSHEY_SIMPLEX
+APP_FONT_FAMILY = "Segoe UI"
+
+if plt is not None:
+    plt.rcParams["font.family"] = APP_FONT_FAMILY
+    plt.rcParams["axes.unicode_minus"] = False
 
 STATUS_TEXT = {
-    "DUNG_TU_THE": "TU THE DUNG",
-    "SAI_TU_THE": "SAI TU THE",
-    "KHONG_PHAT_HIEN_NGUOI": "KHONG PHAT HIEN NGUOI",
-    "DANG_KIEM_TRA": "DANG KIEM TRA...",
+    "DUNG_TU_THE": "TƯ THẾ ĐÚNG",
+    "SAI_TU_THE": "SAI TƯ THẾ",
+    "KHONG_PHAT_HIEN_NGUOI": "KHÔNG PHÁT HIỆN NGƯỜI",
+    "DANG_KIEM_TRA": "ĐANG KIỂM TRA...",
+}
+
+RISK_LEVEL_TEXT = {
+    "LOW": "Thấp",
+    "MEDIUM": "Trung bình",
+    "HIGH": "Cao",
+    "CRITICAL": "Rất cao",
+}
+
+DATA_QUALITY_TEXT = {
+    "ok": "Ổn",
+    "zero_duration": "Thiếu thời lượng",
+    "no_frame_summary": "Thiếu thống kê frame",
+    "no_posture_logs": "Thiếu nhật ký tư thế",
+    "missing_end_time": "Thiếu thời điểm kết thúc",
 }
 
 STATUS_COLORS = {
-    "DUNG_TU_THE": "#22c55e",
-    "SAI_TU_THE": "#ef4444",
-    "KHONG_PHAT_HIEN_NGUOI": "#9ca3af",
-    "DANG_KIEM_TRA": "#f59e0b",
+    "DUNG_TU_THE": "#15803d",
+    "SAI_TU_THE": "#dc2626",
+    "KHONG_PHAT_HIEN_NGUOI": "#64748b",
+    "DANG_KIEM_TRA": "#b45309",
 }
+
+THEMES = {
+    "light": {
+        "app_bg": "#f6f8fb",
+        "surface": "#ffffff",
+        "surface_muted": "#eef2f7",
+        "surface_subtle": "#f8fafc",
+        "border": "#d7dde8",
+        "border_soft": "#e5eaf2",
+        "text": "#162033",
+        "muted": "#5b677a",
+        "muted_light": "#7b8798",
+        "success": "#15803d",
+        "success_bg": "#dcfce7",
+        "danger": "#dc2626",
+        "danger_bg": "#fee2e2",
+        "warning": "#b45309",
+        "warning_bg": "#fef3c7",
+        "info": "#2563eb",
+        "info_bg": "#dbeafe",
+        "neutral": "#64748b",
+        "neutral_bg": "#e2e8f0",
+    },
+    "dark": {
+        "app_bg": "#0f172a",
+        "surface": "#111827",
+        "surface_muted": "#1f2937",
+        "surface_subtle": "#172033",
+        "border": "#334155",
+        "border_soft": "#243244",
+        "text": "#f8fafc",
+        "muted": "#cbd5e1",
+        "muted_light": "#94a3b8",
+        "success": "#22c55e",
+        "success_bg": "#052e16",
+        "danger": "#f87171",
+        "danger_bg": "#450a0a",
+        "warning": "#fbbf24",
+        "warning_bg": "#422006",
+        "info": "#60a5fa",
+        "info_bg": "#172554",
+        "neutral": "#94a3b8",
+        "neutral_bg": "#1e293b",
+    },
+}
+THEME = dict(THEMES["light"])
 
 
 mp_pose = mp.solutions.pose
@@ -135,20 +226,46 @@ def format_duration(seconds: float | int | None) -> str:
     return f"{remaining_seconds}s"
 
 
+def app_font(size: int, weight: str | None = None) -> ctk.CTkFont:
+    """Create a CTk font that renders Vietnamese well on Windows."""
+    kwargs: dict[str, Any] = {"family": APP_FONT_FAMILY, "size": size}
+    if weight is not None:
+        kwargs["weight"] = weight
+    return ctk.CTkFont(**kwargs)
+
+
+def translate_risk_level(level: str | None) -> str:
+    return RISK_LEVEL_TEXT.get(str(level or "LOW"), str(level or "LOW"))
+
+
+def translate_data_quality(note: str | None) -> str:
+    if not note:
+        return ""
+    parts = [part for part in str(note).split(";") if part]
+    translated = [DATA_QUALITY_TEXT.get(part, part) for part in parts]
+    return "; ".join(translated)
+
+
+def load_overlay_font(scale: float, bold: bool = False) -> ImageFont.ImageFont:
+    """Load a Unicode-capable font for video overlay text."""
+    font_size = max(13, int(28 * scale))
+    font_names = ["segoeuib.ttf", "segoeui.ttf"] if bold else ["segoeui.ttf", "arial.ttf"]
+    for font_name in font_names:
+        font_path = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts" / font_name
+        if font_path.exists():
+            return ImageFont.truetype(str(font_path), font_size)
+    return ImageFont.load_default()
+
+
 def get_db_connection() -> sqlite3.Connection:
     """
     Tao ket noi SQLite va bat foreign key.
 
-    Neu database chua ton tai, ham se raise FileNotFoundError de GUI thong bao
-    nguoi dung chay file setup truoc.
+    Neu database chua ton tai, app tu tao database runtime lan dau.
     """
-    if not DATABASE_PATH.exists():
-        raise FileNotFoundError(
-            "Khong tim thay database/posture_app.db. "
-            "Hay chay: python src/3_database_setup.py"
-        )
+    db_path = ensure_runtime_database()
 
-    connection = sqlite3.connect(DATABASE_PATH)
+    connection = sqlite3.connect(db_path)
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
@@ -164,7 +281,7 @@ def project_path_from_text(path_text: str | None, fallback: Path) -> Path:
     if path.is_absolute():
         return path
 
-    return BASE_DIR / path
+    return resource_path(path)
 
 
 def resolve_source(source_text: str) -> tuple[int | str, str]:
@@ -207,17 +324,22 @@ def draw_text(
     thickness: int = 2,
 ) -> None:
     """Ve chu co vien den de de doc tren video."""
-    cv2.putText(
-        frame,
+    font = load_overlay_font(scale, bold=thickness >= 2)
+    image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    drawer = ImageDraw.Draw(image)
+    x, y = position
+    text_position = (x, max(0, y - int(24 * scale)))
+    rgb_color = (color[2], color[1], color[0])
+    outline_width = max(1, thickness)
+    drawer.text(
+        text_position,
         text,
-        position,
-        FONT,
-        scale,
-        (0, 0, 0),
-        thickness + 2,
-        cv2.LINE_AA,
+        font=font,
+        fill=rgb_color,
+        stroke_width=outline_width,
+        stroke_fill=(0, 0, 0),
     )
-    cv2.putText(frame, text, position, FONT, scale, color, thickness, cv2.LINE_AA)
+    frame[:, :, :] = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
 
 
 def create_default_features(valid: bool = False) -> dict[str, float | bool]:
@@ -515,19 +637,19 @@ def classify_posture_rule_based(
         float(features["shoulder_y_diff"]) > SHOULDER_Y_DIFF_THRESHOLD
         or float(features["shoulder_tilt_angle"]) > SHOULDER_TILT_ANGLE_THRESHOLD
     ):
-        warnings.append("Lech vai hoac nghieng vai")
+        warnings.append("Lệch vai hoặc nghiêng vai")
 
     if float(features["torso_lean_angle"]) > TORSO_LEAN_ANGLE_THRESHOLD:
-        warnings.append("Than nguoi bi nghieng")
+        warnings.append("Thân người bị nghiêng")
 
     if float(features["head_offset_x"]) > HEAD_OFFSET_X_THRESHOLD:
-        warnings.append("Dau lech khoi truc vai")
+        warnings.append("Đầu lệch khỏi trục vai")
 
     if float(features["nose_to_shoulder_y"]) > NOSE_TO_SHOULDER_Y_THRESHOLD:
-        warnings.append("Co dau hieu cui dau")
+        warnings.append("Có dấu hiệu cúi đầu")
 
     if bool(features.get("chin_rest_detected", False)):
-        warnings.append("Co dau hieu chong cam / tay gan mieng")
+        warnings.append("Có dấu hiệu chống cằm / tay gần miệng")
 
     if warnings:
         return "INCORRECT", warnings
@@ -539,6 +661,7 @@ def classify_posture_rule_based(
 try:
     from posture_baseline import (
         classify_posture_rule_based,
+        create_default_features,
         extract_posture_features,
     )
 except ImportError:
@@ -551,7 +674,7 @@ class PostureApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
 
-        self.title("Ung dung phat hien tu the lam viec")
+        self.title("Ứng dụng phát hiện tư thế làm việc")
         self.geometry("1180x680")
         self.minsize(1080, 640)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -604,8 +727,13 @@ class PostureApp(ctk.CTk):
         self.incorrect_seconds = 0.0
         self.current_prob_incorrect: float | None = None
         self.current_confidence: float | None = None
+        self.probability_window: deque[float] = deque(maxlen=5)
+        self.smoothing_window_frames = 5
+        self.smoothing_threshold = 0.5
         self.last_frame_elapsed = 0.0
         self.update_after_id: str | None = None
+        self.metric_labels: dict[str, ctk.CTkLabel] = {}
+        self.current_theme_mode = "light"
 
         # Anh hien thi tren Tkinter can giu reference de khong bi garbage collect.
         self.video_image: ImageTk.PhotoImage | None = None
@@ -619,9 +747,12 @@ class PostureApp(ctk.CTk):
             "duongDanAmThanh": "assets/sounds/alarm.wav",
             "duongDanModel": "models/ann_best.keras",
             "duongDanScaler": "models/scaler.pkl",
+            "cheDoGiaoDien": "light",
+            "smoothingWindowFrames": 5,
+            "smoothingThreshold": 0.5,
         }
 
-        ctk.set_appearance_mode("dark")
+        self.set_theme_mode("light", rebuild=False)
         ctk.set_default_color_theme("blue")
 
         self.create_widgets()
@@ -632,13 +763,60 @@ class PostureApp(ctk.CTk):
     # =========================
     # Khoi tao UI
     # =========================
+    def set_theme_mode(self, mode: str, rebuild: bool = True) -> None:
+        """Doi palette light/dark va dung lai UI khi an toan."""
+        normalized_mode = str(mode).lower()
+        if normalized_mode not in THEMES:
+            normalized_mode = "light"
+
+        if rebuild and self.is_running:
+            messagebox.showinfo(
+                "Đổi giao diện",
+                "Hãy dừng camera/video trước khi đổi Light/Dark mode.",
+            )
+            if hasattr(self, "theme_segment"):
+                self.theme_segment.set(self.current_theme_mode.title())
+            return
+
+        self.current_theme_mode = normalized_mode
+        self.config_data["cheDoGiaoDien"] = normalized_mode
+        THEME.clear()
+        THEME.update(THEMES[normalized_mode])
+        ctk.set_appearance_mode(normalized_mode)
+
+        if not rebuild:
+            return
+
+        for child in self.winfo_children():
+            child.destroy()
+        self.metric_labels = {}
+        self.create_widgets()
+        self.apply_config_to_gui()
+        self.update_status_ui(self.current_status, self.current_confidence)
+        self.update_counter_labels()
+        if self.is_rule_based_mode():
+            self.baseline_info_frame.grid()
+        else:
+            self.baseline_info_frame.grid_remove()
+
+    def on_theme_changed(self, selected_mode: str) -> None:
+        """Xu ly nguoi dung chon Light/Dark mode."""
+        self.set_theme_mode(selected_mode.lower(), rebuild=True)
+
     def create_widgets(self) -> None:
-        """Tao giao dien CustomTkinter."""
+        """Tao giao dien CustomTkinter light mode."""
+        self.configure(fg_color=THEME["app_bg"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0)
         self.grid_rowconfigure(0, weight=1)
 
-        self.video_frame = ctk.CTkFrame(self, corner_radius=10)
+        self.video_frame = ctk.CTkFrame(
+            self,
+            fg_color=THEME["surface"],
+            border_color=THEME["border"],
+            border_width=1,
+            corner_radius=8,
+        )
         self.video_frame.grid(row=0, column=0, padx=(16, 8), pady=16, sticky="nsew")
         self.video_frame.grid_rowconfigure(0, weight=1)
         self.video_frame.grid_rowconfigure(1, weight=0)
@@ -646,14 +824,23 @@ class PostureApp(ctk.CTk):
 
         self.video_label = ctk.CTkLabel(
             self.video_frame,
-            text="Chua bat camera",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            text="Chưa bật camera\nChọn nguồn và bấm Bắt đầu",
+            font=app_font(size=24, weight="bold"),
+            text_color=THEME["muted"],
+            fg_color=THEME["surface_muted"],
+            corner_radius=6,
             width=VIDEO_WIDTH,
             height=VIDEO_HEIGHT,
         )
         self.video_label.grid(row=0, column=0, padx=12, pady=12, sticky="nsew")
 
-        self.baseline_info_frame = ctk.CTkFrame(self.video_frame, corner_radius=8)
+        self.baseline_info_frame = ctk.CTkFrame(
+            self.video_frame,
+            fg_color=THEME["surface_subtle"],
+            border_color=THEME["border_soft"],
+            border_width=1,
+            corner_radius=8,
+        )
         self.baseline_info_frame.grid(
             row=1,
             column=0,
@@ -663,139 +850,293 @@ class PostureApp(ctk.CTk):
         )
         self.baseline_info_label = ctk.CTkLabel(
             self.baseline_info_frame,
-            text="Baseline: chua chay",
+            text="Baseline: chưa chạy",
             justify="left",
             anchor="w",
-            font=ctk.CTkFont(size=13),
+            font=app_font(size=13),
+            text_color=THEME["text"],
         )
         self.baseline_info_label.pack(padx=12, pady=10, fill="x")
         self.baseline_info_frame.grid_remove()
 
-        self.control_frame = ctk.CTkFrame(self, width=360, corner_radius=10)
+        self.control_frame = ctk.CTkScrollableFrame(
+            self,
+            width=380,
+            fg_color=THEME["surface"],
+            border_color=THEME["border"],
+            border_width=1,
+            corner_radius=8,
+        )
         self.control_frame.grid(row=0, column=1, padx=(8, 16), pady=16, sticky="ns")
-        self.control_frame.grid_propagate(False)
 
         self.title_label = ctk.CTkLabel(
             self.control_frame,
-            text="PHAT HIEN TU THE",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            text="PHÁT HIỆN TƯ THẾ",
+            font=app_font(size=24, weight="bold"),
+            text_color=THEME["text"],
+            anchor="w",
         )
-        self.title_label.pack(padx=16, pady=(18, 8), fill="x")
+        self.title_label.pack(padx=16, pady=(16, 2), fill="x")
+
+        ctk.CTkLabel(
+            self.control_frame,
+            text="Giám sát tư thế theo thời gian thực",
+            font=app_font(size=13),
+            text_color=THEME["muted"],
+            anchor="w",
+        ).pack(padx=16, pady=(0, 12), fill="x")
+
+        theme_section = self.create_sidebar_section("Giao diện")
+        self.theme_segment = ctk.CTkSegmentedButton(
+            theme_section,
+            values=["Light", "Dark"],
+            command=self.on_theme_changed,
+            selected_color=THEME["info"],
+            selected_hover_color="#1d4ed8",
+            unselected_color=THEME["surface"],
+            unselected_hover_color=THEME["surface_muted"],
+            text_color=THEME["text"],
+        )
+        self.theme_segment.set(self.current_theme_mode.title())
+        self.theme_segment.pack(padx=12, pady=(10, 12), fill="x")
+
+        status_section = self.create_sidebar_section("Trạng thái hiện tại")
 
         self.status_label = ctk.CTkLabel(
-            self.control_frame,
-            text="DANG KIEM TRA...",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            status_section,
+            text="ĐANG KIỂM TRA...",
+            font=app_font(size=24, weight="bold"),
             text_color=STATUS_COLORS["DANG_KIEM_TRA"],
+            anchor="w",
         )
-        self.status_label.pack(padx=16, pady=(4, 6), fill="x")
+        self.status_label.pack(padx=12, pady=(10, 4), fill="x")
 
         self.confidence_label = ctk.CTkLabel(
-            self.control_frame,
-            text="Do tin cay: --",
-            font=ctk.CTkFont(size=15),
+            status_section,
+            text="Độ tin cậy: --",
+            font=app_font(size=15),
+            text_color=THEME["muted"],
+            anchor="w",
         )
-        self.confidence_label.pack(padx=16, pady=(0, 4), fill="x")
+        self.confidence_label.pack(padx=12, pady=(0, 4), fill="x")
 
         self.incorrect_time_label = ctk.CTkLabel(
-            self.control_frame,
-            text="Thoi gian sai: 0.0s / 5.0s",
-            font=ctk.CTkFont(size=15),
-        )
-        self.incorrect_time_label.pack(padx=16, pady=(0, 12), fill="x")
-
-        self.source_entry = self.create_labeled_entry("Nguon camera/video", "0")
-        self.warning_entry = self.create_labeled_entry("Thoi gian canh bao (giay)", "5")
-        self.cooldown_entry = self.create_labeled_entry(
-            "Thoi gian cho canh bao (giay)", "15"
-        )
-
-        mode_label = ctk.CTkLabel(
-            self.control_frame,
-            text="Che do nhan dien",
+            status_section,
+            text="Thời gian sai: 0.0s / 5.0s",
+            font=app_font(size=15),
+            text_color=THEME["muted"],
             anchor="w",
-            font=ctk.CTkFont(size=14),
         )
-        mode_label.pack(padx=16, pady=(8, 2), fill="x")
+        self.incorrect_time_label.pack(padx=12, pady=(0, 12), fill="x")
+
+        source_section = self.create_sidebar_section("Nguồn đầu vào")
+        self.source_entry = self.create_labeled_entry(
+            source_section,
+            "Camera, IP hoặc video",
+            "0",
+        )
+
+        detection_section = self.create_sidebar_section("Nhận diện")
+        mode_label = ctk.CTkLabel(
+            detection_section,
+            text="Chế độ",
+            anchor="w",
+            text_color=THEME["muted"],
+            font=app_font(size=13),
+        )
+        mode_label.pack(padx=12, pady=(10, 2), fill="x")
 
         self.mode_combobox = ctk.CTkComboBox(
-            self.control_frame,
+            detection_section,
             values=[
                 "ANN",
                 "Rule-based Baseline",
             ],
             state="readonly",
             command=self.on_mode_changed,
+            border_color=THEME["border"],
+            button_color=THEME["info"],
+            button_hover_color="#1d4ed8",
         )
         self.mode_combobox.set("ANN")
-        self.mode_combobox.pack(padx=16, pady=(0, 4), fill="x")
+        self.mode_combobox.pack(padx=12, pady=(0, 12), fill="x")
+
+        alert_section = self.create_sidebar_section("Cảnh báo")
+        self.warning_entry = self.create_labeled_entry(
+            alert_section,
+            "Cảnh báo sau (giây)",
+            "5",
+        )
+        self.cooldown_entry = self.create_labeled_entry(
+            alert_section,
+            "Thời gian chờ giữa cảnh báo (giây)",
+            "15",
+        )
+        self.smoothing_window_entry = self.create_labeled_entry(
+            alert_section,
+            "Làm mượt xác suất (frame)",
+            "5",
+        )
+        self.smoothing_threshold_entry = self.create_labeled_entry(
+            alert_section,
+            "Ngưỡng sai sau làm mượt",
+            "0.5",
+        )
 
         self.sound_switch = ctk.CTkSwitch(
-            self.control_frame,
-            text="Bat am thanh canh bao",
+            alert_section,
+            text="Bật âm thanh cảnh báo",
             onvalue=1,
             offvalue=0,
+            text_color=THEME["text"],
+            progress_color=THEME["info"],
         )
-        self.sound_switch.pack(padx=16, pady=(8, 10), anchor="w")
+        self.sound_switch.pack(padx=12, pady=(8, 12), anchor="w")
         self.sound_switch.select()
 
+        action_section = self.create_sidebar_section("Thao tác")
         self.start_button = ctk.CTkButton(
-            self.control_frame,
-            text="Bat dau",
+            action_section,
+            text="Bắt đầu",
             command=self.start_camera,
             height=36,
+            fg_color=THEME["info"],
+            hover_color="#1d4ed8",
         )
-        self.start_button.pack(padx=16, pady=(6, 6), fill="x")
+        self.start_button.pack(padx=12, pady=(10, 6), fill="x")
 
         self.stop_button = ctk.CTkButton(
-            self.control_frame,
-            text="Dung",
+            action_section,
+            text="Dừng",
             command=self.stop_camera,
             height=36,
-            fg_color="#b91c1c",
-            hover_color="#991b1b",
+            fg_color=THEME["danger"],
+            hover_color="#b91c1c",
             state="disabled",
         )
-        self.stop_button.pack(padx=16, pady=6, fill="x")
+        self.stop_button.pack(padx=12, pady=6, fill="x")
 
         self.save_button = ctk.CTkButton(
-            self.control_frame,
-            text="Luu cai dat",
+            action_section,
+            text="Lưu cài đặt",
             command=self.save_cai_dat_from_gui,
             height=34,
+            fg_color=THEME["neutral"],
+            hover_color="#475569",
         )
-        self.save_button.pack(padx=16, pady=6, fill="x")
+        self.save_button.pack(padx=12, pady=6, fill="x")
 
         self.stats_button = ctk.CTkButton(
-            self.control_frame,
-            text="Xem thong ke",
+            action_section,
+            text="Xem thống kê",
             command=self.show_statistics,
             height=34,
+            fg_color=THEME["success"],
+            hover_color="#166534",
         )
-        self.stats_button.pack(padx=16, pady=(6, 14), fill="x")
+        self.stats_button.pack(padx=12, pady=(6, 12), fill="x")
+
+        summary_section = self.create_sidebar_section("Phiên hiện tại")
+        self.metrics_frame = ctk.CTkFrame(summary_section, fg_color="transparent")
+        self.metrics_frame.pack(padx=10, pady=(10, 12), fill="x")
+        for column_index in range(2):
+            self.metrics_frame.grid_columnconfigure(column_index, weight=1, uniform="metric")
+
+        metric_specs = [
+            ("total", "Tổng frame"),
+            ("correct", "Đúng"),
+            ("incorrect", "Sai"),
+            ("no_person", "Không người"),
+            ("warnings", "Cảnh báo"),
+            ("fps", "FPS"),
+        ]
+        self.metric_labels = {}
+        for index, (key, title) in enumerate(metric_specs):
+            card = ctk.CTkFrame(
+                self.metrics_frame,
+                fg_color=THEME["surface_subtle"],
+                border_color=THEME["border_soft"],
+                border_width=1,
+                corner_radius=8,
+            )
+            card.grid(
+                row=index // 2,
+                column=index % 2,
+                padx=4,
+                pady=4,
+                sticky="nsew",
+            )
+            ctk.CTkLabel(
+                card,
+                text=title,
+                font=app_font(size=11),
+                text_color=THEME["muted"],
+                anchor="w",
+            ).pack(padx=10, pady=(8, 0), fill="x")
+            value_label = ctk.CTkLabel(
+                card,
+                text="0",
+                font=app_font(size=18, weight="bold"),
+                text_color=THEME["text"],
+                anchor="w",
+            )
+            value_label.pack(padx=10, pady=(0, 8), fill="x")
+            self.metric_labels[key] = value_label
 
         self.info_label = ctk.CTkLabel(
-            self.control_frame,
-            text="",
+            summary_section,
+            text="Chế độ ANN lưu thống kê vào SQLite. Rule-based chỉ dùng để kiểm tra baseline.",
             justify="left",
             anchor="w",
-            font=ctk.CTkFont(size=14),
+            wraplength=320,
+            text_color=THEME["muted"],
+            font=app_font(size=12),
         )
-        self.info_label.pack(padx=18, pady=(4, 8), fill="x")
+        self.info_label.pack(padx=12, pady=(0, 12), fill="x")
 
-    def create_labeled_entry(self, label_text: str, default_value: str) -> ctk.CTkEntry:
+    def create_sidebar_section(self, title: str) -> ctk.CTkFrame:
+        """Tao section card trong sidebar."""
+        section = ctk.CTkFrame(
+            self.control_frame,
+            fg_color=THEME["surface_subtle"],
+            border_color=THEME["border_soft"],
+            border_width=1,
+            corner_radius=8,
+        )
+        section.pack(padx=16, pady=(0, 12), fill="x")
+        ctk.CTkLabel(
+            section,
+            text=title,
+            anchor="w",
+            font=app_font(size=14, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(padx=12, pady=(10, 0), fill="x")
+        return section
+
+    def create_labeled_entry(
+        self,
+        parent: Any,
+        label_text: str,
+        default_value: str,
+    ) -> ctk.CTkEntry:
         """Tao label va entry theo cung style."""
         label = ctk.CTkLabel(
-            self.control_frame,
+            parent,
             text=label_text,
             anchor="w",
-            font=ctk.CTkFont(size=14),
+            text_color=THEME["muted"],
+            font=app_font(size=13),
         )
-        label.pack(padx=16, pady=(8, 2), fill="x")
+        label.pack(padx=12, pady=(10, 2), fill="x")
 
-        entry = ctk.CTkEntry(self.control_frame)
+        entry = ctk.CTkEntry(
+            parent,
+            border_color=THEME["border"],
+            fg_color=THEME["surface"],
+            text_color=THEME["text"],
+        )
         entry.insert(0, default_value)
-        entry.pack(padx=16, pady=(0, 4), fill="x")
+        entry.pack(padx=12, pady=(0, 4), fill="x")
         return entry
 
     def on_mode_changed(self, selected_mode: str) -> None:
@@ -806,7 +1147,7 @@ class PostureApp(ctk.CTk):
         self.prediction_mode = selected_mode
         if self.is_rule_based_mode():
             self.baseline_info_frame.grid()
-            self.baseline_info_label.configure(text="Baseline: chua chay")
+            self.baseline_info_label.configure(text="Baseline: chưa chạy")
         else:
             self.baseline_info_frame.grid_remove()
 
@@ -820,10 +1161,7 @@ class PostureApp(ctk.CTk):
             self.config_data = self.load_cai_dat()
             self.apply_config_to_gui()
         except Exception as exc:
-            messagebox.showerror(
-                "Loi database",
-                f"{exc}\n\nHay chay: python src/3_database_setup.py",
-            )
+            messagebox.showerror("Lỗi database", f"{exc}")
             print(f"ERROR: Khong doc duoc database: {exc}")
             self.start_button.configure(state="disabled")
             self.save_button.configure(state="disabled")
@@ -861,10 +1199,11 @@ class PostureApp(ctk.CTk):
     def load_cai_dat(self) -> dict[str, Any]:
         """Doc cau hinh ung dung cua Admin tu bang CaiDat."""
         if self.current_user_id is None:
-            raise RuntimeError("Chua co ma nguoi dung.")
+            raise RuntimeError("Chưa có mã người dùng.")
 
         connection = get_db_connection()
         try:
+            self.ensure_caidat_theme_column(connection)
             connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
             cursor.execute(
@@ -876,7 +1215,10 @@ class PostureApp(ctk.CTk):
                     duongDanAmThanh,
                     nguonCamera,
                     duongDanModel,
-                    duongDanScaler
+                    duongDanScaler,
+                    cheDoGiaoDien,
+                    smoothingWindowFrames,
+                    smoothingThreshold
                 FROM CaiDat
                 WHERE maNguoiDung = ?
                 ORDER BY maCaiDat DESC
@@ -896,12 +1238,43 @@ class PostureApp(ctk.CTk):
                 "nguonCamera": row["nguonCamera"],
                 "duongDanModel": row["duongDanModel"],
                 "duongDanScaler": row["duongDanScaler"],
+                "cheDoGiaoDien": row["cheDoGiaoDien"],
+                "smoothingWindowFrames": row["smoothingWindowFrames"],
+                "smoothingThreshold": row["smoothingThreshold"],
             }
         finally:
             connection.close()
 
+    def ensure_caidat_theme_column(self, connection: sqlite3.Connection) -> None:
+        """Them cac cot cau hinh moi vao database cu neu chua co."""
+        rows = connection.execute("PRAGMA table_info(CaiDat)").fetchall()
+        column_names = {str(row[1]) for row in rows}
+        changed = False
+        if "cheDoGiaoDien" not in column_names:
+            connection.execute(
+                "ALTER TABLE CaiDat ADD COLUMN cheDoGiaoDien TEXT NOT NULL DEFAULT 'light'"
+            )
+            changed = True
+        if "smoothingWindowFrames" not in column_names:
+            connection.execute(
+                "ALTER TABLE CaiDat ADD COLUMN smoothingWindowFrames INTEGER NOT NULL DEFAULT 5"
+            )
+            changed = True
+        if "smoothingThreshold" not in column_names:
+            connection.execute(
+                "ALTER TABLE CaiDat ADD COLUMN smoothingThreshold REAL NOT NULL DEFAULT 0.5"
+            )
+            changed = True
+        if changed:
+            connection.commit()
+
     def apply_config_to_gui(self) -> None:
         """Do cau hinh database len cac control GUI."""
+        theme_mode = str(self.config_data.get("cheDoGiaoDien", "light")).lower()
+        if theme_mode != self.current_theme_mode:
+            self.set_theme_mode(theme_mode, rebuild=True)
+            return
+
         self.source_entry.delete(0, "end")
         self.source_entry.insert(0, str(self.config_data.get("nguonCamera", "0")))
 
@@ -917,10 +1290,25 @@ class PostureApp(ctk.CTk):
             str(self.config_data.get("thoiGianChoCanhBao", 15)),
         )
 
+        self.smoothing_window_entry.delete(0, "end")
+        self.smoothing_window_entry.insert(
+            0,
+            str(self.config_data.get("smoothingWindowFrames", 5)),
+        )
+
+        self.smoothing_threshold_entry.delete(0, "end")
+        self.smoothing_threshold_entry.insert(
+            0,
+            str(self.config_data.get("smoothingThreshold", 0.5)),
+        )
+
         if int(self.config_data.get("batAmThanh", 1)) == 1:
             self.sound_switch.select()
         else:
             self.sound_switch.deselect()
+
+        if hasattr(self, "theme_segment"):
+            self.theme_segment.set(self.current_theme_mode.title())
 
     def read_gui_settings(self) -> dict[str, Any]:
         """Doc va validate cau hinh nguoi dung nhap tren GUI."""
@@ -929,12 +1317,27 @@ class PostureApp(ctk.CTk):
         try:
             warning_seconds = max(1, int(float(self.warning_entry.get().strip())))
         except ValueError as exc:
-            raise ValueError("Thoi gian canh bao phai la so.") from exc
+            raise ValueError("Thời gian cảnh báo phải là số.") from exc
 
         try:
             cooldown_seconds = max(1, int(float(self.cooldown_entry.get().strip())))
         except ValueError as exc:
-            raise ValueError("Thoi gian cho canh bao phai la so.") from exc
+            raise ValueError("Thời gian chờ cảnh báo phải là số.") from exc
+
+        try:
+            smoothing_window_frames = max(
+                1,
+                min(60, int(float(self.smoothing_window_entry.get().strip()))),
+            )
+        except ValueError as exc:
+            raise ValueError("Số frame làm mượt phải là số.") from exc
+
+        try:
+            smoothing_threshold = float(self.smoothing_threshold_entry.get().strip())
+        except ValueError as exc:
+            raise ValueError("Ngưỡng sai sau làm mượt phải là số.") from exc
+        if not 0.01 <= smoothing_threshold <= 0.99:
+            raise ValueError("Ngưỡng sai sau làm mượt phải nằm trong [0.01, 0.99].")
 
         return {
             "nguonCamera": source,
@@ -953,23 +1356,27 @@ class PostureApp(ctk.CTk):
                 "duongDanScaler",
                 "models/scaler.pkl",
             ),
+            "cheDoGiaoDien": self.current_theme_mode,
+            "smoothingWindowFrames": smoothing_window_frames,
+            "smoothingThreshold": smoothing_threshold,
         }
 
     def save_cai_dat_from_gui(self) -> None:
         """Luu cau hinh tren GUI vao bang CaiDat."""
         if self.current_user_id is None:
-            messagebox.showerror("Loi", "Chua co nguoi dung Admin trong database.")
+            messagebox.showerror("Lỗi", "Chưa có người dùng Admin trong database.")
             return
 
         try:
             settings = self.read_gui_settings()
         except ValueError as exc:
-            messagebox.showerror("Loi cai dat", str(exc))
+            messagebox.showerror("Lỗi cài đặt", str(exc))
             return
 
         connection = None
         try:
             connection = get_db_connection()
+            self.ensure_caidat_theme_column(connection)
             cursor = connection.cursor()
             cursor.execute(
                 """
@@ -995,9 +1402,12 @@ class PostureApp(ctk.CTk):
                         nguonCamera,
                         duongDanModel,
                         duongDanScaler,
+                        cheDoGiaoDien,
+                        smoothingWindowFrames,
+                        smoothingThreshold,
                         ngayCapNhat
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         self.current_user_id,
@@ -1008,6 +1418,9 @@ class PostureApp(ctk.CTk):
                         settings["nguonCamera"],
                         settings["duongDanModel"],
                         settings["duongDanScaler"],
+                        settings["cheDoGiaoDien"],
+                        settings["smoothingWindowFrames"],
+                        settings["smoothingThreshold"],
                         now_iso(),
                     ),
                 )
@@ -1023,6 +1436,9 @@ class PostureApp(ctk.CTk):
                         nguonCamera = ?,
                         duongDanModel = ?,
                         duongDanScaler = ?,
+                        cheDoGiaoDien = ?,
+                        smoothingWindowFrames = ?,
+                        smoothingThreshold = ?,
                         ngayCapNhat = ?
                     WHERE maCaiDat = ?
                     """,
@@ -1034,6 +1450,9 @@ class PostureApp(ctk.CTk):
                         settings["nguonCamera"],
                         settings["duongDanModel"],
                         settings["duongDanScaler"],
+                        settings["cheDoGiaoDien"],
+                        settings["smoothingWindowFrames"],
+                        settings["smoothingThreshold"],
                         now_iso(),
                         row[0],
                     ),
@@ -1042,12 +1461,12 @@ class PostureApp(ctk.CTk):
             connection.commit()
             self.config_data = settings
             self.apply_runtime_settings()
-            messagebox.showinfo("Thanh cong", "Da luu cai dat.")
+            messagebox.showinfo("Thành công", "Đã lưu cài đặt.")
 
         except Exception as exc:
             if connection is not None:
                 connection.rollback()
-            messagebox.showerror("Loi database", f"Khong luu duoc cai dat: {exc}")
+            messagebox.showerror("Lỗi database", f"Không lưu được cài đặt: {exc}")
             print(f"ERROR: Khong luu duoc CaiDat: {exc}")
 
         finally:
@@ -1057,7 +1476,7 @@ class PostureApp(ctk.CTk):
     def start_phien_lam_viec(self, loai_nguon: str, gia_tri_nguon: str) -> int:
         """Tao mot dong phien lam viec moi va tra ve maPhien."""
         if self.current_user_id is None:
-            raise RuntimeError("Chua co nguoi dung Admin.")
+            raise RuntimeError("Chưa có người dùng Admin.")
 
         connection = get_db_connection()
         try:
@@ -1336,6 +1755,10 @@ class PostureApp(ctk.CTk):
         self.warning_cooldown_seconds = float(
             self.config_data.get("thoiGianChoCanhBao", 15)
         )
+        self.smoothing_window_frames = int(self.config_data.get("smoothingWindowFrames", 5))
+        self.smoothing_threshold = float(self.config_data.get("smoothingThreshold", 0.5))
+        if self.probability_window.maxlen != self.smoothing_window_frames:
+            self.probability_window = deque(maxlen=self.smoothing_window_frames)
         self.alarm_enabled = int(self.config_data.get("batAmThanh", 1)) == 1
 
     def is_ann_mode(self) -> bool:
@@ -1422,6 +1845,7 @@ class PostureApp(ctk.CTk):
         self.incorrect_seconds = 0.0
         self.current_prob_incorrect = None
         self.current_confidence = None
+        self.probability_window.clear()
         self.last_frame_elapsed = 0.0
         self.reset_capture_state()
 
@@ -1541,7 +1965,7 @@ class PostureApp(ctk.CTk):
             cap = cv2.VideoCapture(source_value)
 
             if not cap.isOpened():
-                raise RuntimeError(f"Khong mo duoc nguon camera/video: {source_text}")
+                raise RuntimeError(f"Không mở được nguồn camera/video: {source_text}")
 
             self.configure_capture(cap, source_type)
 
@@ -1577,18 +2001,19 @@ class PostureApp(ctk.CTk):
             self.stop_button.configure(state="disabled")
             self.save_button.configure(state="normal")
             self.mode_combobox.configure(state="readonly")
-            self.clear_video_label("Chua bat camera")
-            messagebox.showerror("Loi khoi dong", str(exc))
+            self.clear_video_label("Chưa bật camera")
+            messagebox.showerror("Lỗi khởi động", str(exc))
             print(f"ERROR: Khong khoi dong duoc app: {exc}")
 
     def save_cai_dat_silent(self) -> None:
         """Luu cau hinh truoc khi bat dau, khong hien messagebox thanh cong."""
         if self.current_user_id is None:
-            raise RuntimeError("Chua co nguoi dung Admin trong database.")
+            raise RuntimeError("Chưa có người dùng Admin trong database.")
 
         settings = dict(self.config_data)
         connection = get_db_connection()
         try:
+            self.ensure_caidat_theme_column(connection)
             cursor = connection.cursor()
             cursor.execute(
                 """
@@ -1614,9 +2039,12 @@ class PostureApp(ctk.CTk):
                         nguonCamera,
                         duongDanModel,
                         duongDanScaler,
+                        cheDoGiaoDien,
+                        smoothingWindowFrames,
+                        smoothingThreshold,
                         ngayCapNhat
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         self.current_user_id,
@@ -1627,6 +2055,9 @@ class PostureApp(ctk.CTk):
                         settings["nguonCamera"],
                         settings["duongDanModel"],
                         settings["duongDanScaler"],
+                        settings.get("cheDoGiaoDien", self.current_theme_mode),
+                        settings.get("smoothingWindowFrames", 5),
+                        settings.get("smoothingThreshold", 0.5),
                         now_iso(),
                     ),
                 )
@@ -1642,6 +2073,9 @@ class PostureApp(ctk.CTk):
                         nguonCamera = ?,
                         duongDanModel = ?,
                         duongDanScaler = ?,
+                        cheDoGiaoDien = ?,
+                        smoothingWindowFrames = ?,
+                        smoothingThreshold = ?,
                         ngayCapNhat = ?
                     WHERE maCaiDat = ?
                     """,
@@ -1653,6 +2087,9 @@ class PostureApp(ctk.CTk):
                         settings["nguonCamera"],
                         settings["duongDanModel"],
                         settings["duongDanScaler"],
+                        settings.get("cheDoGiaoDien", self.current_theme_mode),
+                        settings.get("smoothingWindowFrames", 5),
+                        settings.get("smoothingThreshold", 0.5),
                         now_iso(),
                         row[0],
                     ),
@@ -1830,6 +2267,7 @@ class PostureApp(ctk.CTk):
         if not results.pose_landmarks:
             self.current_prob_incorrect = None
             self.current_confidence = None
+            self.probability_window.clear()
             return "KHONG_PHAT_HIEN_NGUOI", None, None, None, results, None, []
 
         landmarks = results.pose_landmarks.landmark
@@ -1846,15 +2284,18 @@ class PostureApp(ctk.CTk):
         if len(feature_vector) != NUM_FEATURES:
             self.current_prob_incorrect = None
             self.current_confidence = None
+            self.probability_window.clear()
             return "KHONG_PHAT_HIEN_NGUOI", None, None, None, results, None, []
 
         features = np.array([feature_vector], dtype=np.float32)
         features_scaled = self.scaler.transform(features)
         prediction = self.model(features_scaled, training=False)
-        prob_incorrect = float(np.asarray(prediction).reshape(-1)[0])
+        raw_prob_incorrect = float(np.asarray(prediction).reshape(-1)[0])
+        self.probability_window.append(raw_prob_incorrect)
+        prob_incorrect = float(np.mean(self.probability_window))
 
         # Label 1 = sai tu the, nen sigmoid output la P(sai).
-        if prob_incorrect >= 0.5:
+        if prob_incorrect >= self.smoothing_threshold:
             status = "SAI_TU_THE"
             predicted_label = 1
             confidence = prob_incorrect
@@ -2151,14 +2592,14 @@ class PostureApp(ctk.CTk):
         )
 
         if self.is_rule_based_mode():
-            draw_text(frame, "MODE: RULE-BASED", (18, 62), (245, 245, 245), 0.55, 1)
+            draw_text(frame, "CHẾ ĐỘ: RULE-BASED", (18, 62), (245, 245, 245), 0.55, 1)
             draw_text(frame, f"FPS: {self.fps:.1f}", (240, 62), (245, 245, 245), 0.55, 1)
             return
 
         prob_text = "--" if prob_incorrect is None else f"{prob_incorrect:.3f}"
         conf_text = "--" if confidence is None else f"{confidence * 100:.1f}%"
         draw_text(frame, f"P(sai): {prob_text}", (18, 62), (245, 245, 245), 0.55, 1)
-        draw_text(frame, f"Do tin cay: {conf_text}", (175, 62), (245, 245, 245), 0.55, 1)
+        draw_text(frame, f"Độ tin cậy: {conf_text}", (175, 62), (245, 245, 245), 0.55, 1)
         draw_text(frame, f"FPS: {self.fps:.1f}", (390, 62), (245, 245, 245), 0.55, 1)
 
     def show_frame(self, frame: np.ndarray) -> None:
@@ -2168,7 +2609,7 @@ class PostureApp(ctk.CTk):
         self.video_image = ImageTk.PhotoImage(image=image)
         self.video_label.configure(image=self.video_image, text="")
 
-    def clear_video_label(self, text: str = "Chua bat camera") -> None:
+    def clear_video_label(self, text: str = "Chưa bật camera") -> None:
         """
         Xoa anh hien tai khoi label mot cach an toan.
 
@@ -2216,9 +2657,9 @@ class PostureApp(ctk.CTk):
         )
 
         if confidence is None:
-            self.confidence_label.configure(text="Do tin cay: --")
+            self.confidence_label.configure(text="Độ tin cậy: --")
         else:
-            self.confidence_label.configure(text=f"Do tin cay: {confidence * 100:.2f}%")
+            self.confidence_label.configure(text=f"Độ tin cậy: {confidence * 100:.2f}%")
 
         if status == "SAI_TU_THE" and self.incorrect_start_time is not None:
             wrong_duration = max(0.0, time.time() - self.incorrect_start_time)
@@ -2226,10 +2667,10 @@ class PostureApp(ctk.CTk):
             wrong_duration = 0.0
 
         if status == "SAI_TU_THE" and incorrect_confirmed:
-            timer_text = f"Da canh bao: {wrong_duration:.1f}s"
+            timer_text = f"Đã cảnh báo: {wrong_duration:.1f}s"
         else:
             timer_text = (
-                f"Thoi gian sai: {wrong_duration:.1f}s / "
+                f"Thời gian sai: {wrong_duration:.1f}s / "
                 f"{self.warning_seconds:.1f}s"
             )
 
@@ -2237,15 +2678,18 @@ class PostureApp(ctk.CTk):
 
     def update_counter_labels(self) -> None:
         """Cap nhat thong tin nhanh ben phai."""
-        text = (
-            f"Tong frame: {self.total_frames}\n"
-            f"Frame dung: {self.correct_frames}\n"
-            f"Frame sai: {self.incorrect_frames}\n"
-            f"Frame khong co nguoi: {self.no_person_frames}\n"
-            f"So lan canh bao: {self.warning_count}\n"
-            f"FPS: {self.fps:.1f}"
-        )
-        self.info_label.configure(text=text)
+        values = {
+            "total": str(self.total_frames),
+            "correct": str(self.correct_frames),
+            "incorrect": str(self.incorrect_frames),
+            "no_person": str(self.no_person_frames),
+            "warnings": str(self.warning_count),
+            "fps": f"{self.fps:.1f}",
+        }
+        for key, value in values.items():
+            label = self.metric_labels.get(key)
+            if label is not None:
+                label.configure(text=value)
 
     def update_baseline_info_panel(
         self,
@@ -2270,10 +2714,10 @@ class PostureApp(ctk.CTk):
         if not features or not bool(features.get("valid", False)):
             self.baseline_info_label.configure(
                 text=(
-                    "Che do: Rule-based Baseline\n"
-                    f"Trang thai: {status_text}\n"
-                    "Khong phat hien nguoi / do tin cay thap\n"
-                    f"So lan canh bao baseline: {self.warning_count} (khong luu CSDL)\n"
+                    "Chế độ: Rule-based Baseline\n"
+                    f"Trạng thái: {status_text}\n"
+                    "Không phát hiện người / độ tin cậy thấp\n"
+                    f"Số lần cảnh báo baseline: {self.warning_count} (không lưu CSDL)\n"
                     f"FPS: {self.fps:.1f}"
                 )
             )
@@ -2288,24 +2732,26 @@ class PostureApp(ctk.CTk):
         warning_lines = (
             "\n".join(f"- {warning}" for warning in warnings)
             if warnings
-            else "- Khong co"
+            else "- Không có"
         )
         text = (
-            "Che do: Rule-based Baseline\n"
-            f"Trang thai: {status_text}\n"
-            "Canh bao:\n"
+            "Chế độ: Rule-based Baseline\n"
+            f"Trạng thái: {status_text}\n"
+            "Cảnh báo:\n"
             f"{warning_lines}\n"
-            "Dac trung:\n"
-            f"do lech vai y: {fmt_float('shoulder_y_diff')}\n"
-            f"goc nghieng vai: {fmt_float('shoulder_tilt_angle')}\n"
-            f"goc nghieng than: {fmt_float('torso_lean_angle')}\n"
-            f"do lech dau x: {fmt_float('head_offset_x')}\n"
-            f"mui so voi vai y: {fmt_float('nose_to_shoulder_y')}\n"
-            f"do tin cay landmark: {fmt_float('visibility')}\n"
-            f"tay trai gan mieng ti le: {fmt_float('left_hand_mouth_ratio')}\n"
-            f"tay phai gan mieng ti le: {fmt_float('right_hand_mouth_ratio')}\n"
-            f"phat hien chong cam: {bool(features.get('chin_rest_detected', False))}\n"
-            f"So lan canh bao baseline: {self.warning_count} (khong luu CSDL)\n"
+            "Đặc trưng:\n"
+            f"độ lệch vai y: {fmt_float('shoulder_y_diff')}\n"
+            f"góc nghiêng vai: {fmt_float('shoulder_tilt_angle')}\n"
+            f"góc nghiêng thân: {fmt_float('torso_lean_angle')}\n"
+            f"độ lệch đầu x: {fmt_float('head_offset_x')}\n"
+            f"mũi so với vai y: {fmt_float('nose_to_shoulder_y')}\n"
+            f"khoảng cách mũi-vai tỉ lệ: {fmt_float('nose_shoulder_clearance_ratio')}\n"
+            f"rụt cổ sâu: {bool(features.get('neck_compression_detected', False))}\n"
+            f"độ tin cậy landmark: {fmt_float('visibility')}\n"
+            f"tay trái gần miệng tỉ lệ: {fmt_float('left_hand_mouth_ratio')}\n"
+            f"tay phải gần miệng tỉ lệ: {fmt_float('right_hand_mouth_ratio')}\n"
+            f"phát hiện chống cằm: {bool(features.get('chin_rest_detected', False))}\n"
+            f"Số lần cảnh báo baseline: {self.warning_count} (không lưu CSDL)\n"
             f"FPS: {self.fps:.1f}"
         )
         self.baseline_info_label.configure(text=text)
@@ -2394,190 +2840,243 @@ class PostureApp(ctk.CTk):
                 self.alarm_thread = None
 
     def show_statistics(self) -> None:
-        """Mo cua so thong ke ngay hien tai voi card va bieu do."""
+        """Mo cua so dashboard thong ke light mode."""
         try:
-            stats = self.get_today_statistics()
-            sessions = self.get_today_session_statistics()
+            dashboard_data = get_dashboard_data(DATABASE_PATH, today_text())
         except Exception as exc:
-            messagebox.showerror("Loi database", f"Khong doc duoc thong ke: {exc}")
+            messagebox.showerror("Lỗi database", f"Không đọc được thống kê: {exc}")
             return
 
-        if stats is None:
-            stats = {
-                "tongSoPhien": 0,
-                "tongThoiGianLamViec": 0.0,
-                "tongThoiGianDung": 0.0,
-                "tongThoiGianSai": 0.0,
-                "tongSoCanhBao": 0,
-                "tiLeDung": 0.0,
-                "tiLeSai": 0.0,
-                "thoiGianKhongXacDinh": 0.0,
-            }
-
         stats_window = ctk.CTkToplevel(self)
-        stats_window.title("THONG KE TU THE HOM NAY")
-        stats_window.geometry("1000x700")
-        stats_window.minsize(900, 650)
+        stats_window.title("Dashboard thống kê tư thế")
+        stats_window.geometry("1120x760")
+        stats_window.minsize(980, 680)
+        stats_window.configure(fg_color=THEME["app_bg"])
         stats_window.transient(self)
         stats_window.grid_columnconfigure(0, weight=1)
         stats_window.grid_rowconfigure(0, weight=1)
 
         main_frame = ctk.CTkScrollableFrame(
             stats_window,
-            fg_color="#1f1f1f",
+            fg_color=THEME["app_bg"],
             corner_radius=0,
         )
         main_frame.grid(row=0, column=0, sticky="nsew")
-        main_frame.grid_columnconfigure(0, weight=1)
-        main_frame.grid_columnconfigure(1, weight=1)
+        self.render_statistics_dashboard(main_frame, dashboard_data, stats_window)
+
+    def render_statistics_dashboard(
+        self,
+        main_frame: Any,
+        dashboard_data: dict[str, Any],
+        stats_window: Any,
+    ) -> None:
+        """Render dashboard statistics for the selected date."""
+        for child in main_frame.winfo_children():
+            child.destroy()
+
+        for column_index in range(2):
+            main_frame.grid_columnconfigure(column_index, weight=1, uniform="stats")
+
+        selected_date = str(dashboard_data.get("date") or today_text())
+        available_dates = dashboard_data.get("available_dates") or [selected_date]
+        stats = dashboard_data.get("stats") or {}
+        sessions = dashboard_data.get("sessions") or []
+        trend = dashboard_data.get("trend") or []
 
         header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        header_frame.grid(
-            row=0,
-            column=0,
-            columnspan=2,
-            padx=24,
-            pady=(22, 10),
-            sticky="ew",
-        )
+        header_frame.grid(row=0, column=0, columnspan=2, padx=24, pady=(22, 12), sticky="ew")
         header_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             header_frame,
-            text="THONG KE TU THE HOM NAY",
-            font=ctk.CTkFont(size=26, weight="bold"),
+            text="Dashboard thống kê tư thế",
+            font=app_font(size=26, weight="bold"),
+            text_color=THEME["text"],
             anchor="w",
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(
             header_frame,
-            text=f"Ngay: {today_text()}",
-            font=ctk.CTkFont(size=14),
-            text_color="#cbd5e1",
+            text="Chế độ ANN được lưu vào SQLite; rule-based chỉ dùng để đối chiếu nhanh.",
+            font=app_font(size=13),
+            text_color=THEME["muted"],
             anchor="w",
         ).grid(row=1, column=0, pady=(4, 0), sticky="w")
 
-        if int(stats.get("tongSoPhien", 0) or 0) == 0 and not sessions:
-            ctk.CTkLabel(
+        date_selector = ctk.CTkComboBox(
+            header_frame,
+            values=available_dates,
+            state="readonly",
+            width=150,
+            command=lambda value: self.reload_statistics_dashboard(
                 main_frame,
-                text="Chua co du lieu thong ke hom nay.",
-                font=ctk.CTkFont(size=15),
-                text_color="#fbbf24",
-            ).grid(row=1, column=0, columnspan=2, padx=24, pady=(0, 8), sticky="w")
+                stats_window,
+                value,
+            ),
+        )
+        date_selector.set(selected_date)
+        date_selector.grid(row=0, column=1, rowspan=2, padx=(16, 0), sticky="e")
+
+        actions_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        actions_frame.grid(row=0, column=2, rowspan=2, padx=(10, 0), sticky="e")
+        ctk.CTkButton(
+            actions_frame,
+            text="Xuất CSV",
+            font=app_font(size=13, weight="bold"),
+            width=110,
+            fg_color=THEME["success"],
+            hover_color="#166534",
+            command=self.export_statistics_from_ui,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            actions_frame,
+            text="Đóng",
+            font=app_font(size=13, weight="bold"),
+            width=90,
+            fg_color=THEME["neutral"],
+            hover_color="#475569",
+            command=stats_window.destroy,
+        ).pack(side="left")
+
+        if int(stats.get("tongSoPhien", 0) or 0) == 0 and not sessions:
+            empty_frame = ctk.CTkFrame(
+                main_frame,
+                fg_color=THEME["warning_bg"],
+                border_color="#facc15",
+                border_width=1,
+                corner_radius=8,
+            )
+            empty_frame.grid(row=1, column=0, columnspan=2, padx=24, pady=(0, 12), sticky="ew")
+            ctk.CTkLabel(
+                empty_frame,
+                text="Chưa có dữ liệu thống kê cho ngày đã chọn.",
+                font=app_font(size=14, weight="bold"),
+                text_color=THEME["warning"],
+                anchor="w",
+            ).pack(padx=14, pady=12, fill="x")
 
         cards_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        cards_frame.grid(row=2, column=0, columnspan=2, padx=24, pady=(8, 16), sticky="ew")
-        for column_index in range(5):
+        cards_frame.grid(row=2, column=0, columnspan=2, padx=24, pady=(0, 16), sticky="ew")
+        for column_index in range(4):
             cards_frame.grid_columnconfigure(column_index, weight=1, uniform="stats_card")
 
         cards = [
             (
-                "Tong thoi gian",
+                "Tổng thời gian",
                 format_duration(stats.get("tongThoiGianLamViec")),
-                "#f8fafc",
+                THEME["info"],
+                f"{int(stats.get('tongSoPhien', 0) or 0)} phiên",
             ),
-            ("Thoi gian dung", format_duration(stats.get("tongThoiGianDung")), "#22c55e"),
-            ("Thoi gian sai", format_duration(stats.get("tongThoiGianSai")), "#ef4444"),
-            ("So lan canh bao", str(int(stats.get("tongSoCanhBao", 0) or 0)), "#f59e0b"),
-            ("So phien", str(int(stats.get("tongSoPhien", 0) or 0)), "#38bdf8"),
+            (
+                "Đúng tư thế",
+                f"{float(stats.get('tiLeDung') or 0.0) * 100:.1f}%",
+                THEME["success"],
+                format_duration(stats.get("tongThoiGianDung")),
+            ),
+            (
+                "Sai tư thế",
+                f"{float(stats.get('tiLeSai') or 0.0) * 100:.1f}%",
+                THEME["danger"],
+                format_duration(stats.get("tongThoiGianSai")),
+            ),
+            (
+                "Rủi ro cao nhất",
+                f"{float(stats.get('highestRiskIndex') or 0.0):.1f}",
+                self.risk_color(str(stats.get("highestRiskLevel") or "LOW")),
+                translate_risk_level(str(stats.get("highestRiskLevel") or "LOW")),
+            ),
+            (
+                "Cảnh báo",
+                str(int(stats.get("tongSoCanhBao", 0) or 0)),
+                THEME["warning"],
+                "Tổng trong ngày",
+            ),
+            (
+                "Độ tin cậy TB",
+                f"{float(stats.get('doTinCayTrungBinh') or 0.0) * 100:.1f}%",
+                THEME["info"],
+                "Theo frame đã lưu",
+            ),
+            (
+                "Không xác định",
+                f"{float(stats.get('tiLeKhongXacDinh') or 0.0) * 100:.1f}%",
+                THEME["neutral"],
+                format_duration(stats.get("thoiGianKhongXacDinh")),
+            ),
+            (
+                "Rủi ro trung bình",
+                f"{float(stats.get('averageRiskIndex') or 0.0):.1f}",
+                THEME["neutral"],
+                "TPRI theo phiên",
+            ),
         ]
-        for column_index, (title, value, color) in enumerate(cards):
-            card = self.create_stat_card(cards_frame, title, value, color)
-            card.grid(row=0, column=column_index, padx=6, pady=4, sticky="nsew")
+        for index, (title, value, color, subtitle) in enumerate(cards):
+            card = self.create_stat_card(cards_frame, title, value, color, subtitle)
+            card.grid(row=index // 4, column=index % 4, padx=6, pady=6, sticky="nsew")
 
-        chart_left = ctk.CTkFrame(main_frame, fg_color="#2b2b2b", corner_radius=8)
+        chart_left = self.create_dashboard_panel(main_frame, "Tỷ lệ thời gian")
         chart_left.grid(row=3, column=0, padx=(24, 10), pady=(0, 16), sticky="nsew")
-        chart_right = ctk.CTkFrame(main_frame, fg_color="#2b2b2b", corner_radius=8)
+        chart_right = self.create_dashboard_panel(main_frame, "Cảnh báo theo phiên")
         chart_right.grid(row=3, column=1, padx=(10, 24), pady=(0, 16), sticky="nsew")
-        self.create_time_pie_chart(chart_left, stats)
+        self.create_time_distribution_chart(chart_left, stats)
         self.create_warning_bar_chart(chart_right, sessions)
 
-        session_frame = ctk.CTkFrame(main_frame, fg_color="#242424", corner_radius=8)
-        session_frame.grid(row=4, column=0, columnspan=2, padx=24, pady=(0, 16), sticky="ew")
-        session_frame.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(
-            session_frame,
-            text="Danh sach phien trong ngay",
-            font=ctk.CTkFont(size=17, weight="bold"),
-            anchor="w",
-        ).grid(row=0, column=0, padx=16, pady=(14, 8), sticky="w")
+        trend_panel = self.create_dashboard_panel(main_frame, "Xu hướng 7 ngày gần nhất")
+        trend_panel.grid(row=4, column=0, columnspan=2, padx=24, pady=(0, 16), sticky="ew")
+        self.create_daily_trend_chart(trend_panel, trend)
 
-        session_textbox = ctk.CTkTextbox(
-            session_frame,
-            height=150,
-            fg_color="#1f1f1f",
-            text_color="#e5e7eb",
-            border_width=1,
-            border_color="#3f3f46",
-            font=ctk.CTkFont(size=13),
-        )
-        session_textbox.grid(row=1, column=0, padx=16, pady=(0, 16), sticky="ew")
-        if sessions:
-            lines = []
-            for session in sessions:
-                start_text = str(session.get("thoiGianBatDau") or "")
-                try:
-                    start_display = datetime.fromisoformat(start_text).strftime("%H:%M:%S")
-                except ValueError:
-                    start_display = start_text[11:19] if len(start_text) >= 19 else "--:--:--"
-
-                lines.append(
-                    "Phien #{ma_phien} | Bat dau: {bat_dau} | Dung: {dung} | "
-                    "Sai: {sai} | Canh bao: {canh_bao}".format(
-                        ma_phien=session.get("maPhien"),
-                        bat_dau=start_display,
-                        dung=format_duration(session.get("tongThoiGianDung")),
-                        sai=format_duration(session.get("tongThoiGianSai")),
-                        canh_bao=int(session.get("soLanCanhBao") or 0),
-                    )
-                )
-            session_textbox.insert("1.0", "\n".join(lines))
-        else:
-            session_textbox.insert("1.0", "Chua co du lieu phien trong ngay.")
-        session_textbox.configure(state="disabled")
+        table_panel = self.create_dashboard_panel(main_frame, "Bảng phiên trong ngày")
+        table_panel.grid(row=5, column=0, columnspan=2, padx=24, pady=(0, 16), sticky="ew")
+        self.create_session_table(table_panel, sessions)
 
         if self.is_running and self.current_session_id is not None:
-            current_frame = ctk.CTkFrame(main_frame, fg_color="#242424", corner_radius=8)
-            current_frame.grid(
-                row=5,
-                column=0,
-                columnspan=2,
-                padx=24,
-                pady=(0, 16),
-                sticky="ew",
-            )
-            current_frame.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(
-                current_frame,
-                text="Phien hien tai",
-                font=ctk.CTkFont(size=17, weight="bold"),
-                anchor="w",
-            ).grid(row=0, column=0, padx=16, pady=(14, 4), sticky="w")
+            current_frame = self.create_dashboard_panel(main_frame, "Phiên đang chạy")
+            current_frame.grid(row=6, column=0, columnspan=2, padx=24, pady=(0, 24), sticky="ew")
             current_text = (
-                "Phien hien tai chua duoc luu cho den khi bam Dung.\n"
-                f"Tong frame: {self.total_frames} | "
-                f"Frame dung: {self.correct_frames} | "
-                f"Frame sai: {self.incorrect_frames} | "
-                f"Frame khong co nguoi: {self.no_person_frames}\n"
-                f"So lan canh bao: {self.warning_count} | "
-                f"Thoi gian dung: {format_duration(self.correct_seconds)} | "
-                f"Thoi gian sai: {format_duration(self.incorrect_seconds)}"
+                "Phiên hiện tại sẽ được lưu sau khi bấm Dừng. "
+                f"Frame: {self.total_frames}, đúng: {self.correct_frames}, "
+                f"sai: {self.incorrect_frames}, không có người: {self.no_person_frames}, "
+                f"cảnh báo: {self.warning_count}."
             )
             ctk.CTkLabel(
                 current_frame,
                 text=current_text,
                 justify="left",
                 anchor="w",
-                font=ctk.CTkFont(size=13),
-                text_color="#cbd5e1",
-            ).grid(row=1, column=0, padx=16, pady=(0, 14), sticky="w")
+                wraplength=940,
+                font=app_font(size=13),
+                text_color=THEME["muted"],
+            ).pack(padx=14, pady=(0, 14), fill="x")
 
-        close_button = ctk.CTkButton(
-            main_frame,
-            text="Dong",
-            width=160,
-            command=stats_window.destroy,
+    def reload_statistics_dashboard(
+        self,
+        main_frame: Any,
+        stats_window: Any,
+        date_text: str,
+    ) -> None:
+        try:
+            dashboard_data = get_dashboard_data(DATABASE_PATH, date_text)
+        except Exception as exc:
+            messagebox.showerror("Lỗi database", f"Không đọc được thống kê: {exc}")
+            return
+        self.render_statistics_dashboard(main_frame, dashboard_data, stats_window)
+
+    def create_dashboard_panel(self, parent: Any, title: str) -> ctk.CTkFrame:
+        panel = ctk.CTkFrame(
+            parent,
+            fg_color=THEME["surface"],
+            border_color=THEME["border"],
+            border_width=1,
+            corner_radius=8,
         )
-        close_button.grid(row=6, column=0, columnspan=2, padx=24, pady=(0, 24))
+        panel.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            panel,
+            text=title,
+            font=app_font(size=16, weight="bold"),
+            text_color=THEME["text"],
+            anchor="w",
+        ).pack(padx=14, pady=(14, 8), fill="x")
+        return panel
 
     def create_stat_card(
         self,
@@ -2585,38 +3084,93 @@ class PostureApp(ctk.CTk):
         title: str,
         value: str,
         color: str | None = None,
+        subtitle: str | None = None,
     ) -> ctk.CTkFrame:
         """Tao card thong ke gom title va value."""
-        card = ctk.CTkFrame(parent, fg_color="#2b2b2b", corner_radius=8)
+        card = ctk.CTkFrame(
+            parent,
+            fg_color=THEME["surface"],
+            border_color=THEME["border"],
+            border_width=1,
+            corner_radius=8,
+        )
         card.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             card,
             text=title,
-            font=ctk.CTkFont(size=12),
-            text_color="#a1a1aa",
+            font=app_font(size=12),
+            text_color=THEME["muted"],
             anchor="w",
         ).grid(row=0, column=0, padx=14, pady=(12, 2), sticky="ew")
 
         ctk.CTkLabel(
             card,
             text=value,
-            font=ctk.CTkFont(size=22, weight="bold"),
-            text_color=color or "#f8fafc",
+            font=app_font(size=22, weight="bold"),
+            text_color=color or THEME["text"],
             anchor="w",
         ).grid(row=1, column=0, padx=14, pady=(0, 14), sticky="ew")
 
+        if subtitle:
+            ctk.CTkLabel(
+                card,
+                text=subtitle,
+                font=app_font(size=12),
+                text_color=THEME["muted_light"],
+                anchor="w",
+            ).grid(row=2, column=0, padx=14, pady=(0, 12), sticky="ew")
+
         return card
+
+    def create_time_distribution_chart(self, parent: Any, stats: dict[str, Any]) -> None:
+        """Ve stacked horizontal bar cho ty le thoi gian."""
+        correct_seconds = float(stats.get("tongThoiGianDung") or 0.0)
+        incorrect_seconds = float(stats.get("tongThoiGianSai") or 0.0)
+        other_seconds = float(stats.get("thoiGianKhongXacDinh") or 0.0)
+        total_seconds = correct_seconds + incorrect_seconds + other_seconds
+
+        if plt is None or FigureCanvasTkAgg is None:
+            self.create_time_fallback_chart(parent, stats)
+            return
+
+        fig, ax = plt.subplots(figsize=(5.1, 2.6), dpi=100)
+        self.apply_light_chart_style(fig, ax)
+        if total_seconds > 0:
+            left = 0.0
+            for label, value, color in [
+                ("Đúng", correct_seconds, THEME["success"]),
+                ("Sai", incorrect_seconds, THEME["danger"]),
+                ("Không xác định", other_seconds, THEME["neutral"]),
+            ]:
+                ratio = value / total_seconds if total_seconds > 0 else 0.0
+                if ratio <= 0:
+                    continue
+                ax.barh(["Thời gian"], [ratio], left=left, color=color, label=label)
+                if ratio >= 0.08:
+                    ax.text(
+                        left + ratio / 2,
+                        0,
+                        f"{ratio * 100:.0f}%",
+                        ha="center",
+                        va="center",
+                        color="#ffffff",
+                        fontsize=9,
+                        fontweight="bold",
+                    )
+                left += ratio
+            ax.set_xlim(0, 1)
+            ax.set_xlabel("Tỷ lệ")
+            ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+            ax.set_xticklabels(["0%", "25%", "50%", "75%", "100%"])
+            ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3, frameon=False)
+        else:
+            self.draw_empty_chart(ax, "Chưa có dữ liệu")
+        fig.tight_layout()
+        self.embed_chart(parent, fig)
 
     def create_time_fallback_chart(self, parent: Any, stats: dict[str, Any]) -> None:
         """Ve thong ke thoi gian bang CTkProgressBar khi chua co matplotlib."""
-        ctk.CTkLabel(
-            parent,
-            text="Ty le thoi gian tu the",
-            font=ctk.CTkFont(size=15, weight="bold"),
-            text_color="#f8fafc",
-        ).pack(pady=(18, 10))
-
         correct_seconds = float(stats.get("tongThoiGianDung") or 0.0)
         incorrect_seconds = float(stats.get("tongThoiGianSai") or 0.0)
         other_seconds = float(stats.get("thoiGianKhongXacDinh") or 0.0)
@@ -2625,16 +3179,16 @@ class PostureApp(ctk.CTk):
         if total_seconds <= 0:
             ctk.CTkLabel(
                 parent,
-                text="Chua co du lieu",
-                font=ctk.CTkFont(size=13),
-                text_color="#cbd5e1",
-            ).pack(expand=True)
+                text="Chưa có dữ liệu",
+                font=app_font(size=13),
+                text_color=THEME["muted"],
+            ).pack(expand=True, pady=36)
             return
 
         rows = [
-            ("Dung tu the", correct_seconds, "#22c55e"),
-            ("Sai tu the", incorrect_seconds, "#ef4444"),
-            ("Khac", other_seconds, "#71717a"),
+            ("Đúng tư thế", correct_seconds, THEME["success"]),
+            ("Sai tư thế", incorrect_seconds, THEME["danger"]),
+            ("Khác", other_seconds, THEME["neutral"]),
         ]
         for label, value, color in rows:
             ratio = value / total_seconds if total_seconds > 0 else 0.0
@@ -2647,14 +3201,14 @@ class PostureApp(ctk.CTk):
                 text=label,
                 width=95,
                 anchor="w",
-                text_color="#e5e7eb",
-                font=ctk.CTkFont(size=12),
+                text_color=THEME["text"],
+                font=app_font(size=12),
             ).grid(row=0, column=0, sticky="w")
             progress = ctk.CTkProgressBar(
                 row_frame,
                 height=12,
                 progress_color=color,
-                fg_color="#3f3f46",
+                fg_color=THEME["surface_muted"],
             )
             progress.grid(row=0, column=1, padx=10, sticky="ew")
             progress.set(ratio)
@@ -2663,8 +3217,8 @@ class PostureApp(ctk.CTk):
                 text=f"{ratio * 100:.1f}% ({format_duration(value)})",
                 width=105,
                 anchor="e",
-                text_color="#cbd5e1",
-                font=ctk.CTkFont(size=12),
+                text_color=THEME["muted"],
+                font=app_font(size=12),
             ).grid(row=0, column=2, sticky="e")
 
     def create_warning_fallback_chart(
@@ -2673,20 +3227,13 @@ class PostureApp(ctk.CTk):
         sessions: list[dict[str, Any]],
     ) -> None:
         """Ve so canh bao theo phien bang CTkProgressBar khi chua co matplotlib."""
-        ctk.CTkLabel(
-            parent,
-            text="So canh bao theo phien",
-            font=ctk.CTkFont(size=15, weight="bold"),
-            text_color="#f8fafc",
-        ).pack(pady=(18, 10))
-
         if not sessions:
             ctk.CTkLabel(
                 parent,
-                text="Chua co du lieu phien",
-                font=ctk.CTkFont(size=13),
-                text_color="#cbd5e1",
-            ).pack(expand=True)
+                text="Chưa có dữ liệu phiên",
+                font=app_font(size=13),
+                text_color=THEME["muted"],
+            ).pack(expand=True, pady=36)
             return
 
         warnings = [int(session.get("soLanCanhBao") or 0) for session in sessions]
@@ -2698,17 +3245,17 @@ class PostureApp(ctk.CTk):
 
             ctk.CTkLabel(
                 row_frame,
-                text=f"Phien {index}",
+                text=f"Phiên {index}",
                 width=70,
                 anchor="w",
-                text_color="#e5e7eb",
-                font=ctk.CTkFont(size=12),
+                text_color=THEME["text"],
+                font=app_font(size=12),
             ).grid(row=0, column=0, sticky="w")
             progress = ctk.CTkProgressBar(
                 row_frame,
                 height=12,
-                progress_color="#f59e0b",
-                fg_color="#3f3f46",
+                progress_color=THEME["warning"],
+                fg_color=THEME["surface_muted"],
             )
             progress.grid(row=0, column=1, padx=10, sticky="ew")
             progress.set(warning_count / max_warning)
@@ -2717,74 +3264,9 @@ class PostureApp(ctk.CTk):
                 text=str(warning_count),
                 width=32,
                 anchor="e",
-                text_color="#cbd5e1",
-                font=ctk.CTkFont(size=12),
+                text_color=THEME["muted"],
+                font=app_font(size=12),
             ).grid(row=0, column=2, sticky="e")
-
-    def create_time_pie_chart(self, parent: Any, stats: dict[str, Any]) -> None:
-        """Ve pie chart ty le dung/sai/khac va nhung vao CustomTkinter."""
-        if plt is None or FigureCanvasTkAgg is None:
-            self.create_time_fallback_chart(parent, stats)
-            return
-
-        correct_seconds = float(stats.get("tongThoiGianDung") or 0.0)
-        incorrect_seconds = float(stats.get("tongThoiGianSai") or 0.0)
-        other_seconds = float(stats.get("thoiGianKhongXacDinh") or 0.0)
-
-        values = []
-        labels = []
-        colors = []
-        for label, value, color in [
-            ("Dung tu the", correct_seconds, "#22c55e"),
-            ("Sai tu the", incorrect_seconds, "#ef4444"),
-            ("Khac", other_seconds, "#71717a"),
-        ]:
-            if value > 0:
-                values.append(value)
-                labels.append(label)
-                colors.append(color)
-
-        fig, ax = plt.subplots(figsize=(4.6, 3.6), dpi=100)
-        fig.patch.set_facecolor("#2b2b2b")
-        ax.set_facecolor("#2b2b2b")
-        ax.set_title("Ty le thoi gian tu the", color="#f8fafc", fontsize=12, pad=12)
-
-        if values:
-            wedges, text_labels, percent_labels = ax.pie(
-                values,
-                labels=labels,
-                autopct="%1.1f%%",
-                startangle=90,
-                colors=colors,
-                wedgeprops={"linewidth": 1, "edgecolor": "#2b2b2b"},
-            )
-            for text_item in [*text_labels, *percent_labels]:
-                text_item.set_color("#f8fafc")
-                text_item.set_fontsize(9)
-            ax.axis("equal")
-        else:
-            ax.text(
-                0.5,
-                0.5,
-                "Chua co du lieu",
-                ha="center",
-                va="center",
-                color="#cbd5e1",
-                fontsize=12,
-                transform=ax.transAxes,
-            )
-            ax.set_xticks([])
-            ax.set_yticks([])
-            for spine in ax.spines.values():
-                spine.set_visible(False)
-
-        fig.tight_layout()
-        canvas = FigureCanvasTkAgg(fig, master=parent)
-        canvas.draw()
-        widget = canvas.get_tk_widget()
-        widget.configure(bg="#2b2b2b", highlightthickness=0)
-        widget.pack(fill="both", expand=True, padx=8, pady=8)
-        parent._chart_canvas = canvas
 
     def create_warning_bar_chart(self, parent: Any, sessions: list[dict[str, Any]]) -> None:
         """Ve bar chart so canh bao theo tung phien."""
@@ -2792,20 +3274,15 @@ class PostureApp(ctk.CTk):
             self.create_warning_fallback_chart(parent, sessions)
             return
 
-        fig, ax = plt.subplots(figsize=(4.6, 3.6), dpi=100)
-        fig.patch.set_facecolor("#2b2b2b")
-        ax.set_facecolor("#2b2b2b")
-        ax.set_title("So canh bao theo phien", color="#f8fafc", fontsize=12, pad=12)
-
+        fig, ax = plt.subplots(figsize=(5.1, 2.8), dpi=100)
+        self.apply_light_chart_style(fig, ax)
         if sessions:
-            labels = [f"P{index}" for index in range(1, len(sessions) + 1)]
-            warnings = [int(session.get("soLanCanhBao") or 0) for session in sessions]
-            bars = ax.bar(labels, warnings, color="#f59e0b", width=0.55)
-            ax.set_ylabel("So canh bao", color="#f8fafc")
+            recent_sessions = sessions[-15:]
+            labels = [f"#{session.get('maPhien')}" for session in recent_sessions]
+            warnings = [int(session.get("soLanCanhBao") or 0) for session in recent_sessions]
+            bars = ax.bar(labels, warnings, color=THEME["warning"], width=0.55)
+            ax.set_ylabel("Số cảnh báo")
             ax.set_ylim(0, max(max(warnings, default=0) + 1, 1))
-            ax.tick_params(axis="x", colors="#f8fafc")
-            ax.tick_params(axis="y", colors="#f8fafc")
-            ax.grid(axis="y", color="#3f3f46", linestyle="--", linewidth=0.7, alpha=0.7)
             for bar, warning_count in zip(bars, warnings):
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
@@ -2813,104 +3290,251 @@ class PostureApp(ctk.CTk):
                     str(warning_count),
                     ha="center",
                     va="bottom",
-                    color="#f8fafc",
+                    color=THEME["text"],
                     fontsize=9,
                 )
-            for spine in ax.spines.values():
-                spine.set_color("#52525b")
         else:
-            ax.text(
-                0.5,
-                0.5,
-                "Chua co du lieu phien",
-                ha="center",
-                va="center",
-                color="#cbd5e1",
-                fontsize=12,
-                transform=ax.transAxes,
-            )
-            ax.set_xticks([])
-            ax.set_yticks([])
-            for spine in ax.spines.values():
-                spine.set_visible(False)
+            self.draw_empty_chart(ax, "Chưa có dữ liệu phiên")
 
         fig.tight_layout()
+        self.embed_chart(parent, fig)
+
+    def create_daily_trend_chart(self, parent: Any, trend: list[dict[str, Any]]) -> None:
+        """Ve xu huong 7 ngay gan nhat."""
+        if plt is None or FigureCanvasTkAgg is None:
+            if not trend:
+                ctk.CTkLabel(
+                    parent,
+                    text="Chưa có dữ liệu xu hướng",
+                    font=app_font(size=13),
+                    text_color=THEME["muted"],
+                ).pack(expand=True, pady=36)
+                return
+            max_warning = max([int(item.get("tongSoCanhBao") or 0) for item in trend] + [1])
+            for item in trend:
+                row = ctk.CTkFrame(parent, fg_color="transparent")
+                row.pack(fill="x", padx=14, pady=5)
+                row.grid_columnconfigure(1, weight=1)
+                ctk.CTkLabel(
+                    row,
+                    text=str(item.get("ngay")),
+                    width=95,
+                    anchor="w",
+                    text_color=THEME["text"],
+                ).grid(row=0, column=0, sticky="w")
+                progress = ctk.CTkProgressBar(
+                    row,
+                    height=10,
+                    progress_color=THEME["danger"],
+                    fg_color=THEME["surface_muted"],
+                )
+                progress.grid(row=0, column=1, padx=10, sticky="ew")
+                progress.set(float(item.get("tiLeSai") or 0.0))
+                ctk.CTkLabel(
+                    row,
+                    text=f"Sai {float(item.get('tiLeSai') or 0.0) * 100:.1f}% | Cảnh báo {int(item.get('tongSoCanhBao') or 0)}/{max_warning}",
+                    width=140,
+                    anchor="e",
+                    text_color=THEME["muted"],
+                    font=app_font(size=12),
+                ).grid(row=0, column=2, sticky="e")
+            return
+
+        fig, ax1 = plt.subplots(figsize=(10.2, 3.0), dpi=100)
+        self.apply_light_chart_style(fig, ax1)
+        if trend:
+            labels = [str(item.get("ngay", ""))[5:] for item in trend]
+            incorrect = [float(item.get("tiLeSai") or 0.0) * 100 for item in trend]
+            warnings = [int(item.get("tongSoCanhBao") or 0) for item in trend]
+            ax1.plot(labels, incorrect, color=THEME["danger"], marker="o", linewidth=2)
+            ax1.set_ylabel("Sai tư thế (%)", color=THEME["danger"])
+            ax1.tick_params(axis="y", labelcolor=THEME["danger"])
+            ax1.set_ylim(0, max(max(incorrect, default=0.0) + 10, 10))
+
+            ax2 = ax1.twinx()
+            ax2.bar(labels, warnings, color=THEME["warning"], alpha=0.25, width=0.55)
+            ax2.set_ylabel("Cảnh báo", color=THEME["warning"])
+            ax2.tick_params(axis="y", labelcolor=THEME["warning"])
+            ax2.spines["right"].set_color(THEME["border"])
+        else:
+            self.draw_empty_chart(ax1, "Chưa có dữ liệu xu hướng")
+
+        fig.tight_layout()
+        self.embed_chart(parent, fig)
+
+    def create_session_table(self, parent: Any, sessions: list[dict[str, Any]]) -> None:
+        """Hien thi phien trong ngay bang table co cot."""
+        if not sessions:
+            ctk.CTkLabel(
+                parent,
+                text="Chưa có phiên trong ngày đã chọn.",
+                font=app_font(size=13),
+                text_color=THEME["muted"],
+            ).pack(padx=14, pady=(0, 16), anchor="w")
+            return
+
+        self.style_session_tree()
+        columns = (
+            "start",
+            "duration",
+            "correct",
+            "incorrect",
+            "unknown",
+            "warnings",
+            "confidence",
+            "risk",
+        )
+        tree = ttk.Treeview(
+            parent,
+            columns=columns,
+            show="headings",
+            height=min(10, max(4, len(sessions))),
+        )
+        headings = {
+            "start": "Bắt đầu",
+            "duration": "Thời lượng",
+            "correct": "Đúng",
+            "incorrect": "Sai",
+            "unknown": "Không người",
+            "warnings": "Cảnh báo",
+            "confidence": "Tin cậy",
+            "risk": "Rủi ro",
+        }
+        widths = {
+            "start": 120,
+            "duration": 90,
+            "correct": 80,
+            "incorrect": 80,
+            "unknown": 100,
+            "warnings": 80,
+            "confidence": 80,
+            "risk": 110,
+        }
+        for column in columns:
+            tree.heading(column, text=headings[column])
+            tree.column(column, width=widths[column], anchor="center", stretch=True)
+
+        for session in sessions:
+            start_text = str(session.get("thoiGianBatDau") or "")
+            try:
+                start_display = datetime.fromisoformat(start_text).strftime("%H:%M:%S")
+            except ValueError:
+                start_display = start_text[11:19] if len(start_text) >= 19 else "--:--:--"
+            risk_text = (
+                f"{float(session.get('riskIndex') or 0.0):.1f} "
+                f"{translate_risk_level(str(session.get('riskLevel') or 'LOW'))}"
+            )
+            tree.insert(
+                "",
+                "end",
+                values=(
+                    f"#{session.get('maPhien')} {start_display}",
+                    format_duration(session.get("durationSeconds")),
+                    f"{float(session.get('correctRatio') or 0.0) * 100:.1f}%",
+                    f"{float(session.get('incorrectRatio') or 0.0) * 100:.1f}%",
+                    f"{float(session.get('noPersonRatio') or 0.0) * 100:.1f}%",
+                    int(session.get("soLanCanhBao") or 0),
+                    f"{float(session.get('averageConfidence') or 0.0) * 100:.1f}%",
+                    risk_text,
+                ),
+            )
+
+        tree.pack(fill="x", expand=False, padx=14, pady=(0, 14))
+
+    def style_session_tree(self) -> None:
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+        style.configure(
+            "Treeview",
+            background=THEME["surface"],
+            foreground=THEME["text"],
+            fieldbackground=THEME["surface"],
+            rowheight=28,
+            borderwidth=0,
+            font=("Segoe UI", 10),
+        )
+        style.configure(
+            "Treeview.Heading",
+            background=THEME["surface_muted"],
+            foreground=THEME["text"],
+            relief="flat",
+            font=("Segoe UI", 10, "bold"),
+        )
+        style.map("Treeview", background=[("selected", THEME["info_bg"])])
+
+    def apply_light_chart_style(self, fig: Any, ax: Any) -> None:
+        fig.patch.set_facecolor(THEME["surface"])
+        ax.set_facecolor(THEME["surface"])
+        ax.tick_params(axis="x", colors=THEME["muted"])
+        ax.tick_params(axis="y", colors=THEME["muted"])
+        ax.grid(axis="y", color=THEME["border_soft"], linestyle="--", linewidth=0.7)
+        for spine in ax.spines.values():
+            spine.set_color(THEME["border"])
+        ax.xaxis.label.set_color(THEME["muted"])
+        ax.yaxis.label.set_color(THEME["muted"])
+
+    def draw_empty_chart(self, ax: Any, text: str) -> None:
+        ax.text(
+            0.5,
+            0.5,
+            text,
+            ha="center",
+            va="center",
+            color=THEME["muted"],
+            fontsize=12,
+            transform=ax.transAxes,
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+    def embed_chart(self, parent: Any, fig: Any) -> None:
         canvas = FigureCanvasTkAgg(fig, master=parent)
         canvas.draw()
         widget = canvas.get_tk_widget()
-        widget.configure(bg="#2b2b2b", highlightthickness=0)
-        widget.pack(fill="both", expand=True, padx=8, pady=8)
+        widget.configure(bg=THEME["surface"], highlightthickness=0)
+        widget.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         parent._chart_canvas = canvas
 
-    def get_today_statistics(self) -> dict[str, Any] | None:
-        """Doc thong ke cua ngay hien tai tu bang ThongKeNgay."""
-        connection = get_db_connection()
+    def risk_color(self, risk_level_text: str) -> str:
+        return {
+            "LOW": THEME["success"],
+            "MEDIUM": THEME["warning"],
+            "HIGH": THEME["danger"],
+            "CRITICAL": "#7f1d1d",
+        }.get(risk_level_text, THEME["neutral"])
+
+    def export_statistics_from_ui(self) -> None:
+        """Chay script export CSV thong ke tu dashboard."""
+        if is_frozen():
+            messagebox.showinfo(
+                "Xuất CSV",
+                "Bản desktop đã đóng gói chỉ hỗ trợ xem thống kê trong app. "
+                "Hãy dùng bản source Python nếu cần xuất CSV nghiên cứu.",
+            )
+            return
+
+        script_path = BASE_DIR / "src" / "10_export_statistics.py"
         try:
-            connection.row_factory = sqlite3.Row
-            cursor = connection.cursor()
-            cursor.execute(
-                """
-                SELECT
-                    tongSoPhien,
-                    tongThoiGianLamViec,
-                    tongThoiGianDung,
-                    tongThoiGianSai,
-                    tongSoCanhBao,
-                    tiLeDung,
-                    tiLeSai
-                FROM ThongKeNgay
-                WHERE ngay = ?
-                """,
-                (today_text(),),
+            subprocess.run(
+                [sys.executable, str(script_path)],
+                cwd=BASE_DIR,
+                check=True,
+                capture_output=True,
+                text=True,
             )
-            row = cursor.fetchone()
-            if row is None:
-                return None
+        except Exception as exc:
+            messagebox.showerror("Xuất CSV", f"Không export được thống kê: {exc}")
+            return
 
-            stats = dict(row)
-            total_work = float(stats.get("tongThoiGianLamViec") or 0.0)
-            total_correct = float(stats.get("tongThoiGianDung") or 0.0)
-            total_incorrect = float(stats.get("tongThoiGianSai") or 0.0)
-            stats["thoiGianKhongXacDinh"] = max(
-                0.0,
-                total_work - total_correct - total_incorrect,
-            )
-            return stats
-        finally:
-            connection.close()
-
-    def get_today_session_statistics(self) -> list[dict[str, Any]]:
-        """
-        Lay danh sach cac phien lam viec trong ngay hien tai tu bang PhienLamViec.
-
-        Du lieu nay dung de ve bieu do cot va danh sach tom tat phien.
-        """
-        connection = get_db_connection()
-        try:
-            connection.row_factory = sqlite3.Row
-            cursor = connection.cursor()
-            cursor.execute(
-                """
-                SELECT
-                    maPhien,
-                    thoiGianBatDau,
-                    thoiGianKetThuc,
-                    tongThoiGianDung,
-                    tongThoiGianSai,
-                    soLanCanhBao,
-                    tongSoFrame,
-                    soFrameDung,
-                    soFrameSai,
-                    soFrameKhongCoNguoi
-                FROM PhienLamViec
-                WHERE thoiGianBatDau LIKE ?
-                ORDER BY thoiGianBatDau ASC
-                """,
-                (today_text() + "%",),
-            )
-            return [dict(row) for row in cursor.fetchall()]
-        finally:
-            connection.close()
+        messagebox.showinfo(
+            "Xuất CSV",
+            "Đã export thống kê vào reports/results.",
+        )
 
     # =========================
     # Dung app va giai phong tai nguyen
@@ -2927,11 +3551,11 @@ class PostureApp(ctk.CTk):
         self.cancel_pending_frame_update()
 
         if not self.is_running and self.cap is None:
-            self.clear_video_label("Chua bat camera")
+            self.clear_video_label("Chưa bật camera")
             self.mode_combobox.configure(state="readonly")
             if self.is_rule_based_mode():
                 self.baseline_info_frame.grid()
-                self.baseline_info_label.configure(text="Baseline: chua chay")
+                self.baseline_info_label.configure(text="Baseline: chưa chạy")
             else:
                 self.baseline_info_frame.grid_remove()
             return
@@ -2953,10 +3577,10 @@ class PostureApp(ctk.CTk):
         self.update_status_ui("DANG_KIEM_TRA", None)
         if self.is_rule_based_mode():
             self.baseline_info_frame.grid()
-            self.baseline_info_label.configure(text="Baseline: chua chay")
+            self.baseline_info_label.configure(text="Baseline: chưa chạy")
         else:
             self.baseline_info_frame.grid_remove()
-        self.clear_video_label("Chua bat camera")
+        self.clear_video_label("Chưa bật camera")
 
     def release_video_resources(self) -> None:
         """Giai phong VideoCapture va MediaPipe Pose neu dang mo."""

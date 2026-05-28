@@ -1,8 +1,8 @@
 External Evaluation Metrics
 ===========================
 
-Dataset: D:\posture_detection_app\dataset\posture_external_test_2fps.csv
-Dataset shape: (1697, 100)
+Dataset: D:\posture_detection_app\dataset\processed\posture_external_test_2fps_with_metadata.csv
+Dataset shape: (1697, 108)
 Model: D:\posture_detection_app\models\ann_best.keras
 Scaler: D:\posture_detection_app\models\scaler.pkl
 
@@ -11,6 +11,11 @@ Accuracy : 0.793164
 Precision: 0.945988
 Recall   : 0.659849
 F1-score : 0.777425
+Macro F1 : 0.792125
+MCC      : 0.629328
+ROC-AUC  : 0.950458
+PR-AUC   : 0.957466
+Brier    : 0.186415
 
 Confusion matrix [[TN, FP], [FN, TP]]:
 [[733  35]

@@ -1,6 +1,9 @@
 import sys
+import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +39,12 @@ def classify(landmarks):
     return classify_posture_rule_based(extract_posture_features(landmarks))
 
 
+def normalize_text(text: str) -> str:
+    normalized = unicodedata.normalize("NFD", text)
+    without_marks = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+    return without_marks.replace("đ", "d").replace("Đ", "D").lower()
+
+
 def test_rule_based_correct_posture():
     status, warnings = classify(make_landmarks())
     assert status == "CORRECT"
@@ -55,7 +64,30 @@ def test_rule_based_head_offset_incorrect():
     landmarks[0].x = 0.75
     status, warnings = classify(landmarks)
     assert status == "INCORRECT"
-    assert any("dau" in warning.lower() for warning in warnings)
+    assert any("dau" in normalize_text(warning) for warning in warnings)
+
+
+def test_rule_based_moderate_neck_compression_still_correct():
+    landmarks = make_landmarks()
+    landmarks[0].y = 0.38
+    features = extract_posture_features(landmarks)
+    status, warnings = classify_posture_rule_based(features)
+    assert features["nose_to_shoulder_y"] == pytest.approx(-0.04)
+    assert features["nose_shoulder_clearance_ratio"] > 0.12
+    assert status == "CORRECT"
+    assert warnings == []
+
+
+def test_rule_based_deep_neck_compression_incorrect():
+    landmarks = make_landmarks()
+    landmarks[0].y = 0.405
+    features = extract_posture_features(landmarks)
+    status, warnings = classify_posture_rule_based(features)
+    assert features["nose_to_shoulder_y"] == pytest.approx(-0.015)
+    assert features["nose_shoulder_clearance_ratio"] < 0.12
+    assert features["neck_compression_detected"] is True
+    assert status == "INCORRECT"
+    assert any("rut co" in normalize_text(warning) for warning in warnings)
 
 
 def test_rule_based_hand_near_mouth_incorrect():

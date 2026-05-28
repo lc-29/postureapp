@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,45 @@ from typing import Any
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 import cv2
+
+
+def install_tensorflow_doc_controls_stub() -> None:
+    """
+    MediaPipe imports tensorflow.tools.docs.doc_controls for documentation
+    decorators. Feature extraction does not need TensorFlow; this stub avoids a
+    TensorFlow Lite analyzer DLL import on locked-down Windows machines.
+    """
+    if "tensorflow.tools.docs.doc_controls" in sys.modules:
+        return
+
+    tensorflow_module = types.ModuleType("tensorflow")
+    tools_module = types.ModuleType("tensorflow.tools")
+    docs_module = types.ModuleType("tensorflow.tools.docs")
+    doc_controls_module = types.ModuleType("tensorflow.tools.docs.doc_controls")
+
+    def identity_decorator(obj: Any | None = None, *args: Any, **kwargs: Any) -> Any:
+        if obj is not None and callable(obj):
+            return obj
+
+        def wrapper(inner: Any) -> Any:
+            return inner
+
+        return wrapper
+
+    doc_controls_module.do_not_generate_docs = identity_decorator
+    doc_controls_module.do_not_doc_inheritable = identity_decorator
+    doc_controls_module.for_subclass_implementers = identity_decorator
+    docs_module.doc_controls = doc_controls_module
+    tools_module.docs = docs_module
+    tensorflow_module.tools = tools_module
+
+    sys.modules.setdefault("tensorflow", tensorflow_module)
+    sys.modules.setdefault("tensorflow.tools", tools_module)
+    sys.modules.setdefault("tensorflow.tools.docs", docs_module)
+    sys.modules.setdefault("tensorflow.tools.docs.doc_controls", doc_controls_module)
+
+
+install_tensorflow_doc_controls_stub()
 import mediapipe as mp
 import pandas as pd
 
@@ -84,7 +125,18 @@ def generate_feature_columns(include_metadata: bool = False) -> list[str]:
         )
 
     if include_metadata:
-        columns.extend(["source_video", "frame_index", "sample_fps", "video_fps"])
+        columns.extend(
+            [
+                "source_video",
+                "frame_index",
+                "timestamp_sec",
+                "sample_fps",
+                "video_fps",
+                "participant_id",
+                "view_angle",
+                "camera_type",
+            ]
+        )
 
     columns.append("label")
     return columns
@@ -120,6 +172,53 @@ def extract_landmark_vector(pose_landmarks: Any) -> list[float] | None:
     return feature_vector
 
 
+def parse_video_metadata(video_path: Path, input_root: Path | None = None) -> dict[str, str]:
+    """
+    Suy luan metadata toi thieu tu ten file raw video.
+
+    Quy uoc hien tai cua project gom cac ten nhu:
+    P01_correct_front_001.mp4, P04_incorrect_side_30_001.mp4.
+    Neu thieu thong tin thi de trong, khong doan qua muc.
+    """
+    stem = video_path.stem
+    participant_match = re.search(r"(P\d+)", stem, flags=re.IGNORECASE)
+    participant_id = participant_match.group(1).upper() if participant_match else ""
+
+    if "side_90" in stem.lower():
+        view_angle = "side_90"
+    elif "side_30" in stem.lower():
+        view_angle = "side_30"
+    elif "front" in stem.lower():
+        view_angle = "front"
+    else:
+        view_angle = "unknown"
+
+    camera_type = ""
+    path_text = str(video_path).lower()
+    if "external_videos" in path_text:
+        camera_type = "external_video"
+    elif "raw_videos" in path_text:
+        camera_type = "training_video"
+
+    try:
+        source_video = str(video_path.relative_to(BASE_DIR))
+    except ValueError:
+        if input_root is not None:
+            try:
+                source_video = str(video_path.relative_to(input_root))
+            except ValueError:
+                source_video = str(video_path)
+        else:
+            source_video = str(video_path)
+
+    return {
+        "source_video": source_video,
+        "participant_id": participant_id,
+        "view_angle": view_angle,
+        "camera_type": camera_type,
+    }
+
+
 def create_empty_stats(label: int, video_path: Path) -> dict[str, int | float | str]:
     """Tao dict thong ke mac dinh cho mot video."""
     return {
@@ -139,6 +238,7 @@ def process_video(
     pose: Any,
     sample_fps: float = 2.0,
     include_metadata: bool = False,
+    input_root: Path | None = None,
 ) -> tuple[list[list[Any]], dict[str, int | float | str]]:
     """
     Xu ly mot video va tra ve cac row CSV cung thong ke.
@@ -165,6 +265,7 @@ def process_video(
 
         frame_interval = max(int(video_fps / sample_fps), 1)
         stats["video_fps"] = float(video_fps)
+        metadata = parse_video_metadata(video_path, input_root=input_root)
 
         print(
             f"Dang xu ly: {video_path.name} | label={label} | "
@@ -194,15 +295,18 @@ def process_video(
                 vector = extract_landmark_vector(results.pose_landmarks)
                 if vector is not None:
                     if include_metadata:
+                        timestamp_sec = frame_index / float(video_fps) if video_fps > 0 else 0.0
                         rows.append(
                             vector
                             + [
-                                str(video_path.relative_to(BASE_DIR))
-                                if video_path.is_relative_to(BASE_DIR)
-                                else str(video_path),
+                                metadata["source_video"],
                                 frame_index,
+                                round(timestamp_sec, 6),
                                 float(sample_fps),
                                 float(video_fps),
+                                metadata["participant_id"],
+                                metadata["view_angle"],
+                                metadata["camera_type"],
                                 label,
                             ]
                         )
@@ -247,6 +351,7 @@ def print_final_statistics(
     total_rows: int,
     label_counts: dict[int, int],
     output_csv: Path,
+    column_count: int,
 ) -> None:
     """In thong ke cuoi cung sau khi trich xuat va luu CSV."""
     print("\n================= THONG KE TRICH XUAT =================")
@@ -267,7 +372,7 @@ def print_final_statistics(
 
     print(f"\nTong mau CSV: {total_rows}")
     print(f"So dac trung moi mau: {NUM_FEATURES}")
-    print(f"So cot CSV: {NUM_FEATURES + 1}")
+    print(f"So cot CSV: {column_count}")
     print("Phan bo label:")
     print(f"  label 0 - correct: {label_counts.get(0, 0)}")
     print(f"  label 1 - incorrect: {label_counts.get(1, 0)}")
@@ -360,6 +465,7 @@ def process_dataset(
                 pose=pose,
                 sample_fps=sample_fps,
                 include_metadata=include_metadata,
+                input_root=input_root_path,
             )
             all_rows.extend(rows)
             add_stats(correct_stats, stats)
@@ -371,6 +477,7 @@ def process_dataset(
                 pose=pose,
                 sample_fps=sample_fps,
                 include_metadata=include_metadata,
+                input_root=input_root_path,
             )
             all_rows.extend(rows)
             add_stats(incorrect_stats, stats)
@@ -385,7 +492,7 @@ def process_dataset(
     columns = generate_feature_columns(include_metadata=include_metadata)
     df = pd.DataFrame(all_rows, columns=columns)
 
-    expected_column_count = NUM_FEATURES + 1 + (4 if include_metadata else 0)
+    expected_column_count = NUM_FEATURES + 1 + (8 if include_metadata else 0)
     if len(df.columns) != expected_column_count or df.columns[-1] != "label":
         print("ERROR: Cau truc CSV khong dung 99 dac trung + metadata tuy chon + label.")
         return
@@ -406,6 +513,7 @@ def process_dataset(
         total_rows=len(df),
         label_counts=label_counts,
         output_csv=output_csv,
+        column_count=len(df.columns),
     )
 
 

@@ -107,3 +107,24 @@ The current external ANN result should be framed as a low-cost webcam/MediaPipe 
 - Video-wise/person-wise evaluation.
 - Runtime benchmark.
 - Literature comparison table.
+# Results Draft Update
+
+Ngay cap nhat: 2026-05-27
+
+## Current external result
+
+The current ANN model was evaluated on `dataset/posture_external_test_2fps.csv`, which contains 1697 external frames. At threshold 0.50, the ANN reached 79.316% accuracy, 94.599% precision for the incorrect class, 65.985% recall for the incorrect class, and 77.743% F1 for the incorrect class. The confusion matrix was `[[733, 35], [316, 613]]`.
+
+The best F1 threshold in the sweep was 0.10, reaching 80.436% accuracy and 79.903% F1 for the incorrect class. This suggests that a lower alert threshold may be better for an assistive warning system if recall is prioritized.
+
+## Baseline comparison
+
+The ANN outperformed the local rule-based ergonomic baseline on the same external frame-level set. The baseline reached 56.629% accuracy and 64.479% F1 for the incorrect class. McNemar's paired test gave p-value `2.19314e-60`, indicating a statistically significant difference on the paired frame predictions.
+
+## Interpretation
+
+The main remaining weakness is false negatives: at threshold 0.50, 316 incorrect frames were classified as correct. This is important for a posture-warning app because missed incorrect posture can reduce user benefit. The preferred fix is not only lowering threshold, but combining threshold tuning with temporal smoothing and normalized/ergonomic features.
+
+## Claim boundary
+
+These results support the statement that the ANN is better than the local rule-based baseline under the current frame-level protocol. They do not support a state-of-the-art claim against external literature because those studies use different sensors, datasets, labels, and split protocols.

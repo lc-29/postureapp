@@ -22,3 +22,16 @@ TPRI = 100 * (
 The score is interpreted as LOW, MEDIUM, HIGH, or CRITICAL using fixed ranges. It is intended for comparing sessions inside this application and for reporting temporal behavior, not for clinical diagnosis.
 
 The system is an assistive ergonomic reminder. It is not intended for medical diagnosis or clinical decision-making.
+
+## Evaluation Protocol Update
+
+The experimental workflow now includes:
+
+- Frame-level external evaluation using `dataset/posture_external_test_2fps.csv`.
+- Prediction-level export for false-positive/false-negative analysis.
+- ROC, precision-recall, and calibration curves for threshold inspection.
+- Video-level grouping when a metadata CSV contains `source_video` and `frame_index`.
+- Classical machine-learning benchmark models trained on the same landmark CSV and evaluated on the same external CSV.
+- Runtime benchmarking on raw video to estimate MediaPipe + ANN latency.
+
+The strongest current claim remains limited to external frame-level validation. Video-wise and person-wise validation are treated as required future work unless the metadata-rich extraction and held-out split protocol are completed for the full training set.

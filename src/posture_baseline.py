@@ -13,6 +13,7 @@ SHOULDER_TILT_ANGLE_THRESHOLD = 10.0
 TORSO_LEAN_ANGLE_THRESHOLD = 12.0
 HEAD_OFFSET_X_THRESHOLD = 0.10
 NOSE_TO_SHOULDER_Y_THRESHOLD = -0.03
+MIN_NOSE_SHOULDER_CLEARANCE_RATIO = 0.12
 HAND_TO_MOUTH_RATIO_THRESHOLD = 0.45
 HAND_TO_MOUTH_ABS_THRESHOLD = 0.13
 HAND_POINT_MIN_VISIBILITY = 0.35
@@ -44,6 +45,9 @@ def create_default_features(valid: bool = False) -> dict[str, float | bool]:
         "torso_lean_angle": 0.0,
         "head_offset_x": 0.0,
         "nose_to_shoulder_y": 0.0,
+        "nose_shoulder_clearance": 0.0,
+        "nose_shoulder_clearance_ratio": 0.0,
+        "neck_compression_detected": False,
         "visibility": 0.0,
         "left_hand_mouth_distance": 999.0,
         "right_hand_mouth_distance": 999.0,
@@ -160,6 +164,14 @@ def extract_posture_features(landmarks: list[Any]) -> dict[str, float | bool]:
         mouth_center = SimpleNamespace(x=nose.x, y=nose.y)
 
     shoulder_width = max(calculate_distance_2d(left_shoulder, right_shoulder), 1e-6)
+    torso_height = max(mid_hip[1] - mid_shoulder[1], 1e-6)
+    # MediaPipe image y increases downward. Small clearance means the nose is
+    # close to shoulder height, which indicates deep neck compression.
+    nose_shoulder_clearance = mid_shoulder[1] - nose.y
+    nose_shoulder_clearance_ratio = nose_shoulder_clearance / torso_height
+    neck_compression_detected = (
+        nose_shoulder_clearance_ratio < MIN_NOSE_SHOULDER_CLEARANCE_RATIO
+    )
     left_hand_points = visible_points(landmarks, [LEFT_WRIST, LEFT_INDEX, LEFT_PINKY, LEFT_THUMB])
     right_hand_points = visible_points(
         landmarks, [RIGHT_WRIST, RIGHT_INDEX, RIGHT_PINKY, RIGHT_THUMB]
@@ -193,6 +205,9 @@ def extract_posture_features(landmarks: list[Any]) -> dict[str, float | bool]:
         "torso_lean_angle": calculate_torso_lean_angle(mid_shoulder, mid_hip),
         "head_offset_x": abs(nose.x - mid_shoulder[0]),
         "nose_to_shoulder_y": nose.y - mid_shoulder[1],
+        "nose_shoulder_clearance": nose_shoulder_clearance,
+        "nose_shoulder_clearance_ratio": nose_shoulder_clearance_ratio,
+        "neck_compression_detected": neck_compression_detected,
         "visibility": float(visibility),
         "left_hand_mouth_distance": left_distance,
         "right_hand_mouth_distance": right_distance,
@@ -229,15 +244,15 @@ def classify_posture_rule_based(features: dict[str, float | bool]) -> tuple[str,
         float(features["shoulder_y_diff"]) > SHOULDER_Y_DIFF_THRESHOLD
         or float(features["shoulder_tilt_angle"]) > SHOULDER_TILT_ANGLE_THRESHOLD
     ):
-        warnings.append("Lech vai hoac nghieng vai")
+        warnings.append("Lệch vai hoặc nghiêng vai")
     if float(features["torso_lean_angle"]) > TORSO_LEAN_ANGLE_THRESHOLD:
-        warnings.append("Than nguoi bi nghieng")
+        warnings.append("Thân người bị nghiêng")
     if float(features["head_offset_x"]) > HEAD_OFFSET_X_THRESHOLD:
-        warnings.append("Dau lech khoi truc vai")
-    if float(features["nose_to_shoulder_y"]) > NOSE_TO_SHOULDER_Y_THRESHOLD:
-        warnings.append("Co dau hieu cui dau")
+        warnings.append("Đầu lệch khỏi trục vai")
+    if bool(features.get("neck_compression_detected", False)):
+        warnings.append("Mũi gần ngang vai / rụt cổ quá sâu")
     if bool(features.get("chin_rest_detected", False)):
-        warnings.append("Co dau hieu chong cam / tay gan mieng")
+        warnings.append("Có dấu hiệu chống cằm / tay gần miệng")
 
     return ("INCORRECT", warnings) if warnings else ("CORRECT", [])
 
