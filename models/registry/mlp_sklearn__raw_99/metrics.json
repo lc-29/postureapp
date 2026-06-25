@@ -1,0 +1,17 @@
+{
+  "model_id": "mlp_sklearn__raw_99",
+  "algorithm": "mlp_sklearn",
+  "feature_set": "raw_99",
+  "feature_count": 99,
+  "accuracy": 0.5838454784899034,
+  "precision_incorrect": 0.5740283082453381,
+  "recall_incorrect": 1.0,
+  "f1_incorrect": 0.7293748215815016,
+  "macro_f1": 0.41454496064830065,
+  "mcc": 0.17355525192325694,
+  "roc_auc": 0.5738641442488148,
+  "pr_auc": 0.6043534563462026,
+  "brier_score": 0.39426053745162526,
+  "train_seconds": 2.055,
+  "predict_seconds": 0.007
+}

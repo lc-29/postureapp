@@ -1,6 +1,6 @@
 # Algorithm Upgrade And Comparison Plan
 
-Ngay cap nhat: 2026-05-27
+Ngay cap nhat: 2026-05-28
 
 ## Muc tieu
 
@@ -21,21 +21,21 @@ Pipeline hien tai:
 
 | Hang muc | Gia tri |
 |---|---:|
-| External samples | 1697 frames |
-| ANN accuracy threshold 0.5 | 79.316% |
-| ANN precision incorrect threshold 0.5 | 94.599% |
-| ANN recall incorrect threshold 0.5 | 65.985% |
-| ANN F1 incorrect threshold 0.5 | 77.743% |
-| ANN best F1 threshold 0.10 | 79.903% |
-| Rule-based accuracy | 56.629% |
-| Rule-based F1 incorrect | 64.479% |
-| McNemar p-value ANN vs rule-based | 2.19314e-60 |
+| External samples | 1658 frames |
+| ANN accuracy threshold 0.5 | 90.169% |
+| ANN precision incorrect threshold 0.5 | 95.609% |
+| ANN recall incorrect threshold 0.5 | 85.618% |
+| ANN F1 incorrect threshold 0.5 | 90.338% |
+| ANN best F1 threshold 0.10 | 91.889% |
+| Rule-based accuracy | 67.491% |
+| Rule-based F1 incorrect | 75.399% |
+| McNemar p-value ANN vs rule-based | 1.15022e-56 |
 
 Nhan xet:
 
-- ANN tot hon rule-based baseline local tren external frame-level set.
-- Precision incorrect cao, nhung recall incorrect con thap; app co nguy co bo sot nhieu frame sai tu the.
-- Threshold 0.10 dang hop ly hon neu uu tien canh bao som, nhung can calibration va UX tuning.
+- ANN tot hon rule-based baseline local tren external frame-level set sau khi video external bi nham noi dung da duoc thay dung.
+- Precision incorrect va recall incorrect deu kha cao, nhung van con 128 false negatives nen app van co nguy co bo sot mot so frame sai tu the.
+- Threshold 0.10 dang cho F1 cao hon threshold 0.50 neu uu tien canh bao som, nhung can calibration va UX tuning.
 
 ## Diem yeu ky thuat
 
@@ -44,11 +44,11 @@ Nhan xet:
 | Chua co `source_video`/`frame_index` trong CSV | Khong chay duoc video-wise validation that | Cao |
 | Chua co `participant_id` | Khong biet model co generalize sang nguoi moi khong | Cao |
 | Raw coordinates chua normalize | De nhay voi vi tri camera/kich thuoc nguoi | Cao |
-| Chua benchmark KNN/SVM/RF/XGBoost | Khong biet ANN co that su la lua chon tot nhat | Cao |
-| Chua co ROC-AUC/PR-AUC/MCC | Metric chua du cho paper | Trung binh-cao |
+| Da benchmark KNN/SVM/RF/HistGradientBoosting, chua dong goi model tot nhat vao app | App hien van dung ANN mac dinh | Cao |
+| Da co ROC-AUC/PR-AUC/MCC, can chot protocol final | Metric da du hon, nhung can dong bo paper | Trung binh |
 | Chua co temporal smoothing/model | Posture la tin hieu lien tuc nhung model dang frame-level | Cao |
-| Chua co error analysis | Khong biet FN/FP xay ra o tu the/goc nhin nao | Cao |
-| Chua co runtime benchmark | Chua chung minh realtime mot cach dinh luong | Trung binh |
+| Da co error analysis, can them taxonomy nguyen nhan loi | Discussion can sau hon | Trung binh-cao |
+| Da co runtime benchmark | Can bo sung cau hinh may neu nop paper | Trung binh |
 
 ## Nang cap feature
 
@@ -181,12 +181,13 @@ Metric bat buoc:
 Ket luan hien tai:
 
 - ANN local tot hon rule-based baseline trong project.
-- Chua co bang chung tot hon KNN/SVM/RF/XGBoost vi chua benchmark.
-- Chua co co so noi tot hon literature vi dataset/sensor/protocol khac va metric hien tai chua cao.
+- Tren benchmark external raw 99 landmarks, SVM RBF dat F1 incorrect 91.580%, ANN dat 90.338%, Random Forest dat 90.054%.
+- Tren benchmark external ergonomic/combined, SVM RBF voi ergonomic features dat F1 incorrect 95.107%, la ket qua tot nhat trong benchmark noi bo hien tai.
+- Chua co co so noi tot hon literature vi dataset/sensor/protocol khac va metric hien tai chua duoc danh gia tren benchmark cong khai.
 
 Bang statement an toan:
 
-> The ANN model significantly outperformed the local rule-based baseline on the external frame-level test set. However, additional model benchmarks and video/person-wise validation are required before claiming superiority over alternative machine-learning approaches.
+> The current ANN model significantly outperformed the local rule-based baseline on the corrected external frame-level test set. In the internal classifier benchmark, SVM RBF with ergonomic features achieved the highest incorrect-class F1, but additional video/person-wise validation is required before claiming robust generalization.
 
 ## Acceptance criteria cho nang cap thuat toan
 

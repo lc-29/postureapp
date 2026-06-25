@@ -1,6 +1,6 @@
 # Project Completion And Gap Analysis 2026
 
-Ngay cap nhat: 2026-05-27
+Ngay cap nhat: 2026-05-28
 
 ## Muc tieu
 
@@ -12,7 +12,7 @@ File nay tong ket cac nhiem vu trong `workflow_kilo/10_TASK_SPRINGER_AUDIT_AND_U
 |---|---|
 | Model card | Da tao `reports/MODEL_CARD_ANN_CURRENT.md`. |
 | Metadata extraction | Da nang cap `src/2_extract_features.py` de xuat `source_video`, `frame_index`, `timestamp_sec`, `participant_id`, `view_angle`, `camera_type`. |
-| External metadata CSV | Da tao `dataset/processed/posture_external_test_2fps_with_metadata.csv` voi 1697 rows, 108 columns. |
+| External metadata CSV | Da tao lai `dataset/processed/posture_external_test_2fps_with_metadata.csv` voi 1658 rows, 108 columns sau khi thay dung video `P01_incorrect_004.mp4`. |
 | Video-wise evaluation | Da tao `reports/results/video_wise_metrics.csv` va `reports/results/video_wise_summary.md`. |
 | Full algorithm benchmark | Da tao `reports/results/algorithm_benchmark_full.csv`. |
 | Prediction-level export | Da tao `reports/results/external_predictions.csv`. |
@@ -26,51 +26,58 @@ File nay tong ket cac nhiem vu trong `workflow_kilo/10_TASK_SPRINGER_AUDIT_AND_U
 | Data/ethics | Da tao `reports/DATA_ETHICS_STATEMENT.md`. |
 | Springer drafts | Da cap nhat method/results/outline drafts. |
 
+## Cap nhat quan trong ngay 2026-05-28
+
+Video `dataset/external_videos/incorrect/P01_incorrect_004.mp4` truoc do co
+ten/folder `incorrect` nhung noi dung bi nhap nham la video dung tu the. File
+nay da duoc thay bang video sai tu the dung. Toan bo external CSV, manifest,
+external evaluation, video-wise analysis, benchmark, ablation, error analysis,
+statistical analysis va paper artifacts da duoc chay lai.
+
 ## Ket qua thuc nghiem moi
 
 ### External ANN metrics
 
 | Metric | Gia tri |
 |---|---:|
-| Rows | 1697 |
-| Accuracy | 79.316% |
-| Precision incorrect | 94.599% |
-| Recall incorrect | 65.985% |
-| F1 incorrect | 77.743% |
-| Macro F1 | 79.213% |
-| MCC | 62.933% |
-| ROC-AUC | 95.046% |
-| PR-AUC | 95.747% |
-| Brier score | 18.642% |
+| Rows | 1658 |
+| Accuracy | 90.169% |
+| Precision incorrect | 95.609% |
+| Recall incorrect | 85.618% |
+| F1 incorrect | 90.338% |
+| Macro F1 | 90.166% |
+| MCC | 80.901% |
+| ROC-AUC | 98.226% |
+| PR-AUC | 98.505% |
+| Brier score | 7.871% |
 | Best F1 threshold | 0.10 |
-| Best F1 | 79.903% |
+| Best F1 | 91.889% |
 
 ### Full algorithm benchmark
 
 | Model | Accuracy | F1 incorrect | Ghi chu |
 |---|---:|---:|---|
-| Random Forest | 87.036% | 88.372% | Tot nhat theo accuracy/F1 tren external CSV hien tai. |
-| SVM RBF | 79.906% | 78.912% | Gan ANN, recall tot hon ANN. |
-| HistGradientBoosting | 77.549% | 78.438% | Tot nhung kem RF/SVM. |
-| ANN | 79.316% | 77.743% | ROC-AUC/PR-AUC cao nhat, threshold can tune. |
-| Logistic Regression | 77.313% | 74.721% | Baseline tuyen tinh kha tot. |
-| KNN | 71.656% | 70.327% | Kem hon. |
-| Rule-based | 56.747% | 64.610% | Giai thich duoc, nhung metric thap. |
+| SVM RBF | 91.194% | 91.580% | Tot nhat theo F1 tren raw landmark external benchmark. |
+| ANN | 90.169% | 90.338% | App model hien tai, ROC-AUC/PR-AUC cao nhat trong full benchmark raw. |
+| Random Forest | 88.902% | 90.054% | Recall incorrect cao, precision thap hon ANN/SVM. |
+| Logistic Regression | 88.540% | 88.415% | Baseline tuyen tinh kha tot. |
+| HistGradientBoosting | 86.188% | 87.561% | Tot nhung kem SVM/ANN/RF. |
+| KNN | 80.579% | 81.081% | Kem hon. |
+| Rule-based | 67.491% | 75.399% | Giai thich duoc, recall cao nhung precision thap. |
 
-Ket luan moi: **ANN khong con la model tot nhat theo F1/accuracy tren external set hien tai**. Random Forest dang la ung vien tot hon cho classifier tabular landmark. ANN van co ROC-AUC/PR-AUC cao, nen co the cai thien neu calibration/threshold tot hon.
+Ket luan moi: voi raw 99 landmark features, **SVM RBF va ANN dang la hai ung vien manh nhat** tren external set da sua. Voi feature set ergonomic/combined trong benchmark mo rong, SVM RBF + ergonomic dat F1 incorrect 95.107%, cao nhat trong benchmark noi bo hien tai.
 
 ### Video-wise finding
 
-External metadata CSV co 10 videos. Mean video accuracy la 82.482%, nhung std la 28.763%, cho thay performance khong on dinh theo video.
+External metadata CSV co 10 videos. Mean video accuracy la 90.000%, std la 11.770%, on dinh hon nhieu so voi ket qua truoc khi sua video nham noi dung.
 
-Failure case nghiem trong:
+Worst videos sau khi sua external video:
 
-- `dataset\external_videos\incorrect\P01_incorrect_004.mp4`
-- Accuracy: 2.929%
-- False negatives: 232/239
-- Mean probability incorrect: 0.043
+- `dataset\external_videos\incorrect\P01_incorrect_005.mp4`: accuracy 67.485%, false negatives 53.
+- `dataset\external_videos\correct\P01_correct_004.mp4`: accuracy 73.771%, false positives 32.
+- `dataset\external_videos\incorrect\P01_incorrect_004.mp4`: accuracy 77.500%, false negatives 45.
 
-Day la bang chung quan trong: model bo sot mot video sai tu the gan nhu hoan toan. Can uu tien error analysis theo video nay.
+Ket qua moi cho thay `P01_incorrect_004.mp4` khong con la failure case cuc doan do nham noi dung video. Neu van con 45 false negatives, day la hard case thuc su can xem lai posture pattern, goc quay va threshold.
 
 ### Feature ablation
 
@@ -132,27 +139,27 @@ Cach khac phuc toi uu:
 - Dam bao moi participant co ca correct/incorrect va nhieu view angles.
 - Chay leave-one-participant-out cross-validation.
 
-### 3. ANN khong phai model tot nhat theo benchmark moi
+### 3. Can chot model app theo benchmark moi
 
-Van de: Random Forest dat F1 external 88.372%, cao hon ANN 77.743%.
+Van de: app hien tai van dung ANN/raw features, trong khi benchmark moi cho thay SVM RBF + ergonomic features dat F1 incorrect cao nhat tren external benchmark mo rong.
 
 Cach khac phuc:
 
-- Dong goi Random Forest thanh model ung vien cho app.
+- Dong goi SVM/RF thanh model ung vien cho app.
 - Them model selector trong app: ANN / Random Forest / Rule-based.
-- So sanh RF voi ANN tren video-wise/person-wise truoc khi thay default.
+- So sanh SVM/RF voi ANN tren video-wise/person-wise truoc khi thay default.
 - Neu muon giu ANN, can retrain voi normalized + ergonomic features va threshold calibration.
 
-### 4. Failure case `P01_incorrect_004` rat nghiem trong
+### 4. Hard cases sau khi sua external video
 
-Van de: model gan nhu nhan sai toan bo video incorrect nay thanh correct.
+Van de: `P01_incorrect_005.mp4`, `P01_correct_004.mp4` va `P01_incorrect_004.mp4` van tao nhieu loi FN/FP nhat trong video-wise analysis.
 
 Cach khac phuc:
 
-- Trich frame minh hoa false negative tu video nay.
+- Trich frame minh hoa false negative/false positive tu cac video nay.
 - Kiem tra goc quay, anh sang, pose landmarks, label consistency.
 - Them feature ergonomic/normalized.
-- Them video nay vao hard-case analysis trong paper.
+- Them cac video nay vao hard-case analysis trong paper.
 
 ### 5. Feature schema cho app chua dung normalized + ergonomic
 
@@ -191,13 +198,13 @@ Thu tu nen lam tiep:
 
 1. Re-extract full train metadata CSV.
 2. Implement video/person-wise train-test split.
-3. Dong goi Random Forest va normalized+ergonomic feature schema.
+3. Dong goi SVM/RF va normalized+ergonomic feature schema.
 4. So sanh ANN vs RF vs SVM tren video/person-wise protocol.
-5. Trich frame/error examples cho `P01_incorrect_004`.
+5. Trich frame/error examples cho `P01_incorrect_005`, `P01_correct_004`, va `P01_incorrect_004`.
 6. Cap nhat app de chon model RF/ANN va dung feature schema moi.
 7. Chup GUI screenshots va hoan thien figures.
 8. Viet final Springer-style report voi claim an toan.
 
 ## Claim hien tai nen dung
 
-> The project implements a complete webcam-based posture monitoring system with realtime alerts, interpretable ergonomic indicators, session logging, temporal risk scoring, and statistical evaluation. On the current external frame-level set, Random Forest achieved the best F1 among tested tabular models, while the ANN provided high ROC-AUC/PR-AUC but lower recall at the default threshold. Further metadata-rich video/person-wise validation is required before claiming robust generalization.
+> The project implements a complete webcam-based posture monitoring system with realtime alerts, interpretable ergonomic indicators, session logging, temporal risk scoring, and statistical evaluation. On the corrected external frame-level set, ANN reached 90.169% accuracy and 90.338% incorrect-class F1, while SVM RBF with ergonomic features achieved the highest internal benchmark F1. Further metadata-rich video/person-wise validation is required before claiming robust generalization.

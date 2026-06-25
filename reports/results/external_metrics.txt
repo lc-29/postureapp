@@ -2,24 +2,24 @@ External Evaluation Metrics
 ===========================
 
 Dataset: D:\posture_detection_app\dataset\processed\posture_external_test_2fps_with_metadata.csv
-Dataset shape: (1697, 108)
+Dataset shape: (1658, 108)
 Model: D:\posture_detection_app\models\ann_best.keras
 Scaler: D:\posture_detection_app\models\scaler.pkl
 
 Decision threshold: 0.5000
-Accuracy : 0.793164
-Precision: 0.945988
-Recall   : 0.659849
-F1-score : 0.777425
-Macro F1 : 0.792125
-MCC      : 0.629328
-ROC-AUC  : 0.950458
-PR-AUC   : 0.957466
-Brier    : 0.186415
+Accuracy : 0.901689
+Precision: 0.956085
+Recall   : 0.856180
+F1-score : 0.903379
+Macro F1 : 0.901659
+MCC      : 0.809012
+ROC-AUC  : 0.982257
+PR-AUC   : 0.985054
+Brier    : 0.078710
 
 Confusion matrix [[TN, FP], [FN, TP]]:
 [[733  35]
- [316 613]]
+ [128 762]]
 
 Best threshold by F1 in sweep:
-threshold=0.10, accuracy=0.804361, precision=0.912863, recall=0.710441, f1=0.799031
+threshold=0.10, accuracy=0.913752, precision=0.927835, recall=0.910112, f1=0.918888

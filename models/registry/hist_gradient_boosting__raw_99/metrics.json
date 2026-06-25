@@ -1,0 +1,17 @@
+{
+  "model_id": "hist_gradient_boosting__raw_99",
+  "algorithm": "hist_gradient_boosting",
+  "feature_set": "raw_99",
+  "feature_count": 99,
+  "accuracy": 0.6707638279192274,
+  "precision_incorrect": 0.6306016340678385,
+  "recall_incorrect": 0.9968688845401175,
+  "f1_incorrect": 0.7725204731574158,
+  "macro_f1": 0.5884047957526555,
+  "mcc": 0.3931230590256163,
+  "roc_auc": 0.5470257043689506,
+  "pr_auc": 0.6002326946623171,
+  "brier_score": 0.31363872440985074,
+  "train_seconds": 2.399,
+  "predict_seconds": 0.013
+}

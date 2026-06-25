@@ -7,7 +7,7 @@ Ngay cap nhat: 2026-05-28
 | Video renamed P01-P05 | Done | Da ap dung mapping P03->P02, P04->P03, P05->P04, P06->P05. |
 | `video_manifest.csv` created | Done | `dataset/metadata/video_manifest.csv`, 94 video, SHA256 day du. |
 | Raw metadata CSV extracted | Done | `dataset/processed/posture_data_2fps_with_metadata.csv`, 11022 rows, 108 columns. |
-| External metadata CSV extracted | Done | `dataset/processed/posture_external_test_2fps_with_metadata.csv`, 1697 rows, 108 columns. |
+| External metadata CSV extracted | Done | `dataset/processed/posture_external_test_2fps_with_metadata.csv`, 1658 rows, 108 columns, regenerated after replacing `P01_incorrect_004.mp4`. |
 | Ergonomic features generated | Done | Ergonomic va combined CSV da tao trong `dataset/processed/`. |
 | Video-wise evaluation done | Done | `reports/results/video_wise_summary.md`. |
 | Participant-wise evaluation done | Done | Raw va combined summaries da tao trong `reports/results/`. |

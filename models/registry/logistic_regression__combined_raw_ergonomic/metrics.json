@@ -1,0 +1,17 @@
+{
+  "model_id": "logistic_regression__combined_raw_ergonomic",
+  "algorithm": "logistic_regression",
+  "feature_set": "combined_raw_ergonomic",
+  "feature_count": 113,
+  "accuracy": 0.6817383669885865,
+  "precision_incorrect": 0.9734361610968295,
+  "recall_incorrect": 0.4446183953033268,
+  "f1_incorrect": 0.6104245029554003,
+  "macro_f1": 0.670703902683637,
+  "mcc": 0.48790217677952097,
+  "roc_auc": 0.7653582210851522,
+  "pr_auc": 0.8406184258764864,
+  "brier_score": 0.2987453835743107,
+  "train_seconds": 0.517,
+  "predict_seconds": 0.008
+}

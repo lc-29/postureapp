@@ -1,0 +1,31 @@
+{
+  "model_id": "random_forest__ergonomic_14",
+  "feature_set": "ergonomic_14",
+  "default": 0.5,
+  "presets": {
+    "balanced_f1": {
+      "threshold": 0.5,
+      "precision_incorrect": 0.7946549391069012,
+      "recall_incorrect": 0.9193737769080235,
+      "f1_incorrect": 0.8524768644529124,
+      "false_positive": 607,
+      "false_negative": 206
+    },
+    "safety_recall": {
+      "threshold": 0.5,
+      "precision_incorrect": 0.7946549391069012,
+      "recall_incorrect": 0.9193737769080235,
+      "f1_incorrect": 0.8524768644529124,
+      "false_positive": 607,
+      "false_negative": 206
+    },
+    "quiet_precision": {
+      "threshold": 0.95,
+      "precision_incorrect": 0.9640831758034026,
+      "recall_incorrect": 0.19960861056751467,
+      "f1_incorrect": 0.33073929961089493,
+      "false_positive": 19,
+      "false_negative": 2045
+    }
+  }
+}

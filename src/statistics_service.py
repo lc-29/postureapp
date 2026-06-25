@@ -100,30 +100,295 @@ def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
     return row is not None
 
 
-def list_available_dates(db_path: str | Path = DEFAULT_DB) -> list[str]:
+def table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = connection.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+    return {str(row[1]) for row in rows}
+
+
+def _has_global_day_unique_index(connection: sqlite3.Connection) -> bool:
+    """Detect the old ThongKeNgay schema where ngay was globally unique."""
+    for index_row in connection.execute('PRAGMA index_list("ThongKeNgay")').fetchall():
+        is_unique = int(index_row[2]) == 1
+        if not is_unique:
+            continue
+        index_name = str(index_row[1])
+        index_columns = [
+            str(row[2])
+            for row in connection.execute(f'PRAGMA index_info("{index_name}")').fetchall()
+        ]
+        if index_columns == ["ngay"]:
+            return True
+    return False
+
+
+def create_user_scoped_daily_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ThongKeNgay (
+            maThongKe INTEGER PRIMARY KEY AUTOINCREMENT,
+            maNguoiDung INTEGER NOT NULL,
+            ngay TEXT NOT NULL,
+            tongSoPhien INTEGER DEFAULT 0,
+            tongThoiGianLamViec REAL DEFAULT 0,
+            tongThoiGianDung REAL DEFAULT 0,
+            tongThoiGianSai REAL DEFAULT 0,
+            tongSoCanhBao INTEGER DEFAULT 0,
+            tiLeDung REAL DEFAULT 0,
+            tiLeSai REAL DEFAULT 0,
+            ngayCapNhat TEXT NOT NULL,
+            UNIQUE (maNguoiDung, ngay),
+            FOREIGN KEY (maNguoiDung)
+                REFERENCES NguoiDung(maNguoiDung)
+                ON DELETE CASCADE
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_thongke_ngay
+        ON ThongKeNgay(ngay)
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_thongke_user_ngay
+        ON ThongKeNgay(maNguoiDung, ngay)
+        """
+    )
+
+
+def _default_user_id(connection: sqlite3.Connection) -> int | None:
+    row = connection.execute(
+        """
+        SELECT maNguoiDung
+        FROM NguoiDung
+        WHERE tenDangNhap = 'Admin'
+        ORDER BY maNguoiDung ASC
+        LIMIT 1
+        """
+    ).fetchone()
+    if row is not None:
+        return int(row[0])
+    row = connection.execute(
+        "SELECT maNguoiDung FROM NguoiDung ORDER BY maNguoiDung ASC LIMIT 1"
+    ).fetchone()
+    return int(row[0]) if row is not None else None
+
+
+def _rebuild_daily_stats_from_sessions(connection: sqlite3.Connection) -> None:
+    if not table_exists(connection, "PhienLamViec"):
+        return
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO ThongKeNgay (
+            maNguoiDung,
+            ngay,
+            tongSoPhien,
+            tongThoiGianLamViec,
+            tongThoiGianDung,
+            tongThoiGianSai,
+            tongSoCanhBao,
+            tiLeDung,
+            tiLeSai,
+            ngayCapNhat
+        )
+        SELECT
+            maNguoiDung,
+            substr(thoiGianBatDau, 1, 10) AS ngay,
+            COUNT(*) AS tongSoPhien,
+            SUM(
+                CASE
+                    WHEN thoiGianKetThuc IS NOT NULL
+                        AND thoiGianKetThuc != ''
+                        AND thoiGianBatDau IS NOT NULL
+                        AND thoiGianBatDau != ''
+                    THEN max(
+                        0,
+                        (julianday(thoiGianKetThuc) - julianday(thoiGianBatDau)) * 86400.0
+                    )
+                    ELSE COALESCE(tongThoiGianDung, 0) + COALESCE(tongThoiGianSai, 0)
+                END
+            ) AS tongThoiGianLamViec,
+            SUM(COALESCE(tongThoiGianDung, 0)) AS tongThoiGianDung,
+            SUM(COALESCE(tongThoiGianSai, 0)) AS tongThoiGianSai,
+            SUM(COALESCE(soLanCanhBao, 0)) AS tongSoCanhBao,
+            CASE
+                WHEN SUM(
+                    CASE
+                        WHEN thoiGianKetThuc IS NOT NULL
+                            AND thoiGianKetThuc != ''
+                            AND thoiGianBatDau IS NOT NULL
+                            AND thoiGianBatDau != ''
+                        THEN max(
+                            0,
+                            (julianday(thoiGianKetThuc) - julianday(thoiGianBatDau)) * 86400.0
+                        )
+                        ELSE COALESCE(tongThoiGianDung, 0) + COALESCE(tongThoiGianSai, 0)
+                    END
+                ) > 0
+                THEN SUM(COALESCE(tongThoiGianDung, 0)) / SUM(
+                    CASE
+                        WHEN thoiGianKetThuc IS NOT NULL
+                            AND thoiGianKetThuc != ''
+                            AND thoiGianBatDau IS NOT NULL
+                            AND thoiGianBatDau != ''
+                        THEN max(
+                            0,
+                            (julianday(thoiGianKetThuc) - julianday(thoiGianBatDau)) * 86400.0
+                        )
+                        ELSE COALESCE(tongThoiGianDung, 0) + COALESCE(tongThoiGianSai, 0)
+                    END
+                )
+                ELSE 0
+            END AS tiLeDung,
+            CASE
+                WHEN SUM(
+                    CASE
+                        WHEN thoiGianKetThuc IS NOT NULL
+                            AND thoiGianKetThuc != ''
+                            AND thoiGianBatDau IS NOT NULL
+                            AND thoiGianBatDau != ''
+                        THEN max(
+                            0,
+                            (julianday(thoiGianKetThuc) - julianday(thoiGianBatDau)) * 86400.0
+                        )
+                        ELSE COALESCE(tongThoiGianDung, 0) + COALESCE(tongThoiGianSai, 0)
+                    END
+                ) > 0
+                THEN SUM(COALESCE(tongThoiGianSai, 0)) / SUM(
+                    CASE
+                        WHEN thoiGianKetThuc IS NOT NULL
+                            AND thoiGianKetThuc != ''
+                            AND thoiGianBatDau IS NOT NULL
+                            AND thoiGianBatDau != ''
+                        THEN max(
+                            0,
+                            (julianday(thoiGianKetThuc) - julianday(thoiGianBatDau)) * 86400.0
+                        )
+                        ELSE COALESCE(tongThoiGianDung, 0) + COALESCE(tongThoiGianSai, 0)
+                    END
+                )
+                ELSE 0
+            END AS tiLeSai,
+            max(COALESCE(thoiGianKetThuc, thoiGianBatDau, datetime('now'))) AS ngayCapNhat
+        FROM PhienLamViec
+        WHERE maNguoiDung IS NOT NULL
+            AND thoiGianBatDau IS NOT NULL
+            AND thoiGianBatDau != ''
+        GROUP BY maNguoiDung, substr(thoiGianBatDau, 1, 10)
+        """
+    )
+
+
+def ensure_user_scoped_statistics_schema(connection: sqlite3.Connection) -> None:
+    """Migrate daily statistics from global-by-day to per-user-by-day."""
+    if not table_exists(connection, "ThongKeNgay"):
+        create_user_scoped_daily_table(connection)
+        connection.commit()
+        return
+
+    columns = table_columns(connection, "ThongKeNgay")
+    needs_migration = "maNguoiDung" not in columns or _has_global_day_unique_index(connection)
+    if not needs_migration:
+        create_user_scoped_daily_table(connection)
+        connection.commit()
+        return
+
+    legacy_table = "ThongKeNgay_legacy_user_scope"
+    connection.execute(f'DROP TABLE IF EXISTS "{legacy_table}"')
+    connection.execute(f'ALTER TABLE ThongKeNgay RENAME TO "{legacy_table}"')
+    create_user_scoped_daily_table(connection)
+
+    default_user_id = _default_user_id(connection)
+    if default_user_id is not None:
+        connection.execute(
+            f"""
+            INSERT OR IGNORE INTO ThongKeNgay (
+                maNguoiDung,
+                ngay,
+                tongSoPhien,
+                tongThoiGianLamViec,
+                tongThoiGianDung,
+                tongThoiGianSai,
+                tongSoCanhBao,
+                tiLeDung,
+                tiLeSai,
+                ngayCapNhat
+            )
+            SELECT
+                ?,
+                ngay,
+                tongSoPhien,
+                tongThoiGianLamViec,
+                tongThoiGianDung,
+                tongThoiGianSai,
+                tongSoCanhBao,
+                tiLeDung,
+                tiLeSai,
+                ngayCapNhat
+            FROM "{legacy_table}"
+            WHERE ngay IS NOT NULL
+            """,
+            (default_user_id,),
+        )
+
+    _rebuild_daily_stats_from_sessions(connection)
+    connection.execute(f'DROP TABLE IF EXISTS "{legacy_table}"')
+    connection.commit()
+
+
+def list_available_dates(
+    db_path: str | Path = DEFAULT_DB,
+    user_id: int | None = None,
+) -> list[str]:
     path = resolve_db_path(db_path)
     if not path.exists():
         return []
 
     with sqlite3.connect(path) as connection:
+        ensure_user_scoped_statistics_schema(connection)
         dates: set[str] = set()
         if table_exists(connection, "ThongKeNgay"):
-            dates.update(
-                str(row[0])
-                for row in connection.execute(
+            if user_id is None:
+                daily_rows = connection.execute(
                     "SELECT ngay FROM ThongKeNgay WHERE ngay IS NOT NULL"
                 ).fetchall()
+            else:
+                daily_rows = connection.execute(
+                    """
+                    SELECT ngay
+                    FROM ThongKeNgay
+                    WHERE ngay IS NOT NULL AND maNguoiDung = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            dates.update(
+                str(row[0])
+                for row in daily_rows
             )
         if table_exists(connection, "PhienLamViec"):
-            dates.update(
-                str(row[0])[:10]
-                for row in connection.execute(
+            if user_id is None:
+                session_rows = connection.execute(
                     """
                     SELECT thoiGianBatDau
                     FROM PhienLamViec
                     WHERE thoiGianBatDau IS NOT NULL AND thoiGianBatDau != ''
                     """
                 ).fetchall()
+            else:
+                session_rows = connection.execute(
+                    """
+                    SELECT thoiGianBatDau
+                    FROM PhienLamViec
+                    WHERE thoiGianBatDau IS NOT NULL
+                        AND thoiGianBatDau != ''
+                        AND maNguoiDung = ?
+                    """,
+                    (user_id,),
+                ).fetchall()
+            dates.update(
+                str(row[0])[:10]
+                for row in session_rows
             )
     return sorted(dates, reverse=True)
 
@@ -194,6 +459,7 @@ def enrich_session(row: dict[str, Any]) -> dict[str, Any]:
 def get_session_statistics(
     db_path: str | Path = DEFAULT_DB,
     date_text: str | None = None,
+    user_id: int | None = None,
 ) -> list[dict[str, Any]]:
     path = resolve_db_path(db_path)
     if not path.exists():
@@ -206,10 +472,16 @@ def get_session_statistics(
         connection.row_factory = sqlite3.Row
         if not table_exists(connection, "PhienLamViec"):
             return []
+        user_filter = ""
+        params: list[Any] = [date_text + "%"]
+        if user_id is not None:
+            user_filter = "AND maNguoiDung = ?"
+            params.append(user_id)
         rows = connection.execute(
-            """
+            f"""
             SELECT
                 maPhien,
+                maNguoiDung,
                 thoiGianBatDau,
                 thoiGianKetThuc,
                 loaiNguon,
@@ -224,9 +496,10 @@ def get_session_statistics(
                 doTinCayTrungBinh
             FROM PhienLamViec
             WHERE thoiGianBatDau LIKE ?
+                {user_filter}
             ORDER BY thoiGianBatDau ASC
             """,
-            (date_text + "%",),
+            params,
         ).fetchall()
 
     return [enrich_session(dict(row)) for row in rows]
@@ -236,6 +509,7 @@ def get_daily_statistics(
     db_path: str | Path = DEFAULT_DB,
     date_text: str | None = None,
     sessions: list[dict[str, Any]] | None = None,
+    user_id: int | None = None,
 ) -> dict[str, Any]:
     path = resolve_db_path(db_path)
     if not path.exists():
@@ -247,28 +521,48 @@ def get_daily_statistics(
     stats = empty_daily_stats(date_text)
     with sqlite3.connect(path) as connection:
         connection.row_factory = sqlite3.Row
+        ensure_user_scoped_statistics_schema(connection)
         if table_exists(connection, "ThongKeNgay"):
-            row = connection.execute(
+            if user_id is None:
+                sql = """
+                    SELECT
+                        ngay,
+                        SUM(tongSoPhien) AS tongSoPhien,
+                        SUM(tongThoiGianLamViec) AS tongThoiGianLamViec,
+                        SUM(tongThoiGianDung) AS tongThoiGianDung,
+                        SUM(tongThoiGianSai) AS tongThoiGianSai,
+                        SUM(tongSoCanhBao) AS tongSoCanhBao,
+                        0 AS tiLeDung,
+                        0 AS tiLeSai
+                    FROM ThongKeNgay
+                    WHERE ngay = ?
+                    GROUP BY ngay
                 """
-                SELECT
-                    ngay,
-                    tongSoPhien,
-                    tongThoiGianLamViec,
-                    tongThoiGianDung,
-                    tongThoiGianSai,
-                    tongSoCanhBao,
-                    tiLeDung,
-                    tiLeSai
-                FROM ThongKeNgay
-                WHERE ngay = ?
-                """,
-                (date_text,),
+                params: tuple[Any, ...] = (date_text,)
+            else:
+                sql = """
+                    SELECT
+                        ngay,
+                        tongSoPhien,
+                        tongThoiGianLamViec,
+                        tongThoiGianDung,
+                        tongThoiGianSai,
+                        tongSoCanhBao,
+                        tiLeDung,
+                        tiLeSai
+                    FROM ThongKeNgay
+                    WHERE ngay = ? AND maNguoiDung = ?
+                """
+                params = (date_text, user_id)
+            row = connection.execute(
+                sql,
+                params,
             ).fetchone()
             if row is not None:
                 stats.update(dict(row))
 
     if sessions is None:
-        sessions = get_session_statistics(path, date_text)
+        sessions = get_session_statistics(path, date_text, user_id=user_id)
 
     if sessions and safe_int(stats.get("tongSoPhien")) == 0:
         stats["tongSoPhien"] = len(sessions)
@@ -307,6 +601,7 @@ def get_daily_statistics(
 def get_daily_trend(
     db_path: str | Path = DEFAULT_DB,
     limit: int = 7,
+    user_id: int | None = None,
 ) -> list[dict[str, Any]]:
     path = resolve_db_path(db_path)
     if not path.exists():
@@ -314,25 +609,47 @@ def get_daily_trend(
 
     with sqlite3.connect(path) as connection:
         connection.row_factory = sqlite3.Row
+        ensure_user_scoped_statistics_schema(connection)
         if not table_exists(connection, "ThongKeNgay"):
             return []
-        rows = connection.execute(
-            """
-            SELECT
-                ngay,
-                tongSoPhien,
-                tongThoiGianLamViec,
-                tongThoiGianDung,
-                tongThoiGianSai,
-                tongSoCanhBao,
-                tiLeDung,
-                tiLeSai
-            FROM ThongKeNgay
-            ORDER BY ngay DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
+        if user_id is None:
+            rows = connection.execute(
+                """
+                SELECT
+                    ngay,
+                    SUM(tongSoPhien) AS tongSoPhien,
+                    SUM(tongThoiGianLamViec) AS tongThoiGianLamViec,
+                    SUM(tongThoiGianDung) AS tongThoiGianDung,
+                    SUM(tongThoiGianSai) AS tongThoiGianSai,
+                    SUM(tongSoCanhBao) AS tongSoCanhBao,
+                    0 AS tiLeDung,
+                    0 AS tiLeSai
+                FROM ThongKeNgay
+                GROUP BY ngay
+                ORDER BY ngay DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                """
+                SELECT
+                    ngay,
+                    tongSoPhien,
+                    tongThoiGianLamViec,
+                    tongThoiGianDung,
+                    tongThoiGianSai,
+                    tongSoCanhBao,
+                    tiLeDung,
+                    tiLeSai
+                FROM ThongKeNgay
+                WHERE maNguoiDung = ?
+                ORDER BY ngay DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
 
     trend = []
     for row in reversed(rows):
@@ -347,16 +664,17 @@ def get_daily_trend(
 def get_dashboard_data(
     db_path: str | Path = DEFAULT_DB,
     date_text: str | None = None,
+    user_id: int | None = None,
 ) -> dict[str, Any]:
     path = resolve_db_path(db_path)
     if date_text is None:
         date_text = datetime.now().date().isoformat()
 
-    sessions = get_session_statistics(path, date_text)
+    sessions = get_session_statistics(path, date_text, user_id=user_id)
     return {
         "date": date_text,
-        "available_dates": list_available_dates(path),
-        "stats": get_daily_statistics(path, date_text, sessions),
+        "available_dates": list_available_dates(path, user_id=user_id),
+        "stats": get_daily_statistics(path, date_text, sessions, user_id=user_id),
         "sessions": sessions,
-        "trend": get_daily_trend(path, limit=7),
+        "trend": get_daily_trend(path, limit=7, user_id=user_id),
     }

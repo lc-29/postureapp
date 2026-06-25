@@ -28,20 +28,20 @@ Source: `reports/results/external_metrics.txt`
 
 | Metric | Value |
 |---|---:|
-| Dataset rows | 1697 |
-| Accuracy | 0.793164 |
-| Precision (incorrect) | 0.945988 |
-| Recall (incorrect) | 0.659849 |
-| F1-score (incorrect) | 0.777425 |
+| Dataset rows | 1658 |
+| Accuracy | 0.901689 |
+| Precision (incorrect) | 0.956085 |
+| Recall (incorrect) | 0.856180 |
+| F1-score (incorrect) | 0.903379 |
 
 Confusion matrix `[[TN, FP], [FN, TP]]`:
 
 ```text
 [[733  35]
- [316 613]]
+ [128 762]]
 ```
 
-Best threshold by F1 in sweep: `0.10`, with F1 `0.799031`.
+Best threshold by F1 in sweep: `0.10`, with F1 `0.918888`.
 
 ## Baseline comparison
 
@@ -49,8 +49,8 @@ Source: `reports/results/algorithm_comparison.csv`
 
 | Algorithm | Dataset | Accuracy | Precision | Recall | F1 |
 |---|---|---:|---:|---:|---:|
-| ANN | posture_external_test_2fps.csv | 0.793164 | 0.945988 | 0.659849 | 0.777425 |
-| Rule-based | posture_external_test_2fps.csv | 0.566293 | 0.584427 | 0.719053 | 0.644788 |
+| ANN | posture_external_test_2fps_with_metadata.csv | 0.901689 | 0.956085 | 0.856180 | 0.903379 |
+| Rule-based | posture_external_test_2fps_with_metadata.csv | 0.674910 | 0.634896 | 0.928090 | 0.753994 |
 
 ## Statistical analysis
 
@@ -60,17 +60,17 @@ Accuracy with Wilson 95% confidence interval:
 
 | Algorithm | Accuracy | 95% CI |
 |---|---:|---:|
-| ANN | 0.793164 | [0.773242, 0.811763] |
-| Rule-based | 0.566293 | [0.542591, 0.589697] |
+| ANN | 0.901689 | [0.886415, 0.915105] |
+| Rule-based | 0.674910 | [0.651981, 0.697029] |
 
 McNemar paired test on sample-level correctness:
 
 ```text
-[[856 490]
- [105 246]]
+[[1006  489]
+ [ 113   50]]
 ```
 
-P-value: `2.19314e-60`.
+P-value: `1.15022e-56`.
 
 This indicates a statistically significant difference between ANN and rule-based correctness on the same external frames. This result is still frame-level and must not be treated as a substitute for video-wise/person-wise validation.
 
@@ -109,22 +109,22 @@ The current external ANN result should be framed as a low-cost webcam/MediaPipe 
 - Literature comparison table.
 # Results Draft Update
 
-Ngay cap nhat: 2026-05-27
+Ngay cap nhat: 2026-05-28
 
 ## Current external result
 
-The current ANN model was evaluated on `dataset/posture_external_test_2fps.csv`, which contains 1697 external frames. At threshold 0.50, the ANN reached 79.316% accuracy, 94.599% precision for the incorrect class, 65.985% recall for the incorrect class, and 77.743% F1 for the incorrect class. The confusion matrix was `[[733, 35], [316, 613]]`.
+The current ANN model was evaluated on `dataset/processed/posture_external_test_2fps_with_metadata.csv`, which contains 1658 external frames after replacing the mislabeled-content video `P01_incorrect_004.mp4` with a true incorrect-posture video. At threshold 0.50, the ANN reached 90.169% accuracy, 95.609% precision for the incorrect class, 85.618% recall for the incorrect class, and 90.338% F1 for the incorrect class. The confusion matrix was `[[733, 35], [128, 762]]`.
 
-The best F1 threshold in the sweep was 0.10, reaching 80.436% accuracy and 79.903% F1 for the incorrect class. This suggests that a lower alert threshold may be better for an assistive warning system if recall is prioritized.
+The best F1 threshold in the sweep was 0.10, reaching 91.375% accuracy and 91.889% F1 for the incorrect class. This suggests that a lower alert threshold may still be useful for an assistive warning system if recall is prioritized.
 
 ## Baseline comparison
 
-The ANN outperformed the local rule-based ergonomic baseline on the same external frame-level set. The baseline reached 56.629% accuracy and 64.479% F1 for the incorrect class. McNemar's paired test gave p-value `2.19314e-60`, indicating a statistically significant difference on the paired frame predictions.
+The ANN outperformed the local rule-based ergonomic baseline on the same corrected external frame-level set. The baseline reached 67.491% accuracy and 75.399% F1 for the incorrect class. McNemar's paired test gave p-value `1.15022e-56`, indicating a statistically significant difference on the paired frame predictions.
 
 ## Interpretation
 
-The main remaining weakness is false negatives: at threshold 0.50, 316 incorrect frames were classified as correct. This is important for a posture-warning app because missed incorrect posture can reduce user benefit. The preferred fix is not only lowering threshold, but combining threshold tuning with temporal smoothing and normalized/ergonomic features.
+The main remaining weakness is false negatives: at threshold 0.50, 128 incorrect frames were classified as correct. This is important for a posture-warning app because missed incorrect posture can reduce user benefit. The preferred fix is not only lowering threshold, but combining threshold tuning with temporal smoothing and normalized/ergonomic features.
 
 ## Claim boundary
 
-These results support the statement that the ANN is better than the local rule-based baseline under the current frame-level protocol. They do not support a state-of-the-art claim against external literature because those studies use different sensors, datasets, labels, and split protocols.
+These results support the statement that the ANN is better than the local rule-based baseline under the corrected current frame-level protocol. They do not support a state-of-the-art claim against external literature because those studies use different sensors, datasets, labels, and split protocols.

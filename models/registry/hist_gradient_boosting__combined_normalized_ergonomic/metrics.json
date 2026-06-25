@@ -1,0 +1,17 @@
+{
+  "model_id": "hist_gradient_boosting__combined_normalized_ergonomic",
+  "algorithm": "hist_gradient_boosting",
+  "feature_set": "combined_normalized_ergonomic",
+  "feature_count": 113,
+  "accuracy": 0.7769973661106233,
+  "precision_incorrect": 0.8054783644303295,
+  "recall_incorrect": 0.7941291585127201,
+  "f1_incorrect": 0.7997635001970832,
+  "macro_f1": 0.7740768962104783,
+  "mcc": 0.5482526340289807,
+  "roc_auc": 0.8121348327793051,
+  "pr_auc": 0.8477773565772204,
+  "brier_score": 0.19062769496193022,
+  "train_seconds": 1.229,
+  "predict_seconds": 0.015
+}

@@ -1,0 +1,17 @@
+{
+  "model_id": "svm_rbf__raw_99",
+  "algorithm": "svm_rbf",
+  "feature_set": "raw_99",
+  "feature_count": 99,
+  "accuracy": 0.5755048287971906,
+  "precision_incorrect": 0.569169079973268,
+  "recall_incorrect": 1.0,
+  "f1_incorrect": 0.7254400908574673,
+  "macro_f1": 0.39511849803995225,
+  "mcc": 0.13804939464345278,
+  "roc_auc": 0.6459320242031625,
+  "pr_auc": 0.689480747784215,
+  "brier_score": 0.4089152956877206,
+  "train_seconds": 6.138,
+  "predict_seconds": 0.311
+}

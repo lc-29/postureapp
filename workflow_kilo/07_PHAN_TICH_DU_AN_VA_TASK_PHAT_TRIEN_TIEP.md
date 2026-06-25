@@ -31,10 +31,10 @@ Luu y moi truong:
 
 Ket qua hien co dang co gia tri bao cao:
 
-- External ANN: accuracy `0.793164`, precision `0.945988`, recall `0.659849`, F1 `0.777425` tai threshold `0.5`.
-- Best threshold sweep theo F1: threshold `0.10`, accuracy `0.804361`, precision `0.912863`, recall `0.710441`, F1 `0.799031`.
-- Rule-based tren external: accuracy `0.566293`, precision `0.584427`, recall `0.719053`, F1 `0.644788`.
-- McNemar test ANN vs rule-based: p-value `2.19314e-60`, ANN khac biet co y nghia thong ke tren external frame-level set.
+- External ANN sau khi sua video external: accuracy `0.901689`, precision `0.956085`, recall `0.856180`, F1 `0.903379` tai threshold `0.5`.
+- Best threshold sweep theo F1: threshold `0.10`, accuracy `0.913752`, precision `0.927835`, recall `0.910112`, F1 `0.918888`.
+- Rule-based tren external: accuracy `0.674910`, precision `0.634896`, recall `0.928090`, F1 `0.753994`.
+- McNemar test ANN vs rule-based: p-value `1.15022e-56`, ANN khac biet co y nghia thong ke tren external frame-level set.
 
 ## Diem con thieu lon
 
@@ -570,4 +570,3 @@ Done khi:
 2. TASK-044, TASK-045, TASK-046, TASK-047: lam truoc khi viet/nop paper.
 3. TASK-048, TASK-049, TASK-054: hoan thien giao hang va bao cao.
 4. TASK-050, TASK-051, TASK-052, TASK-053: nang chat luong engineering neu con thoi gian.
-

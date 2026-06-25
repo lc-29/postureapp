@@ -1,0 +1,17 @@
+{
+  "model_id": "svm_rbf__ergonomic_14",
+  "algorithm": "svm_rbf",
+  "feature_set": "ergonomic_14",
+  "feature_count": 14,
+  "accuracy": 0.6174275680421423,
+  "precision_incorrect": 0.6920529801324503,
+  "recall_incorrect": 0.5726027397260274,
+  "f1_incorrect": 0.6266866566716641,
+  "macro_f1": 0.6171920791798564,
+  "mcc": 0.24606907659886826,
+  "roc_auc": 0.6977272616138115,
+  "pr_auc": 0.7783555400019533,
+  "brier_score": 0.2918500488037931,
+  "train_seconds": 4.487,
+  "predict_seconds": 0.469
+}

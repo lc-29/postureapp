@@ -1,0 +1,17 @@
+{
+  "model_id": "mlp_sklearn__combined_normalized_ergonomic",
+  "algorithm": "mlp_sklearn",
+  "feature_set": "combined_normalized_ergonomic",
+  "feature_count": 113,
+  "accuracy": 0.5840649692712906,
+  "precision_incorrect": 0.8055555555555556,
+  "recall_incorrect": 0.3405088062622309,
+  "f1_incorrect": 0.4786795048143054,
+  "macro_f1": 0.5663435866229642,
+  "mcc": 0.2748977216978264,
+  "roc_auc": 0.5989847541982434,
+  "pr_auc": 0.7259167151070995,
+  "brier_score": 0.40358899665892567,
+  "train_seconds": 2.815,
+  "predict_seconds": 0.008
+}

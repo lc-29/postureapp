@@ -12,16 +12,16 @@ Error cases CSV: `D:\posture_detection_app\reports\results\error_cases.csv`
 
 | error_type | count |
 | --- | --- |
-| correct | 1346 |
-| false_negative | 316 |
+| correct | 1495 |
+| false_negative | 128 |
 | false_positive | 35 |
 
 ## Worst Videos
 
 | source_video | label | rows | accuracy | precision_incorrect | recall_incorrect | f1_incorrect | false_positive | false_negative | mean_prob_incorrect |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dataset\external_videos\incorrect\P01_incorrect_004.mp4 | 1 | 239 | 0.029289 | 1.000000 | 0.029289 | 0.056911 | 0 | 232 | 0.043355 |
-| dataset\external_videos\incorrect\P01_incorrect_005.mp4 | 1 | 163 | 0.668712 | 1.000000 | 0.668712 | 0.801471 | 0 | 54 | 0.670552 |
+| dataset\external_videos\incorrect\P01_incorrect_005.mp4 | 1 | 163 | 0.674847 | 1.000000 | 0.674847 | 0.805861 | 0 | 53 | 0.682813 |
+| dataset\external_videos\incorrect\P01_incorrect_004.mp4 | 1 | 200 | 0.775000 | 1.000000 | 0.775000 | 0.873239 | 0 | 45 | 0.769268 |
 | dataset\external_videos\incorrect\P01_incorrect_003.mp4 | 1 | 209 | 0.923445 | 1.000000 | 0.923445 | 0.960199 | 0 | 16 | 0.914527 |
 | dataset\external_videos\incorrect\P01_incorrect_001.mp4 | 1 | 155 | 0.916129 | 1.000000 | 0.916129 | 0.956229 | 0 | 13 | 0.916541 |
 | dataset\external_videos\incorrect\P01_incorrect_002.mp4 | 1 | 163 | 0.993865 | 1.000000 | 0.993865 | 0.996923 | 0 | 1 | 0.994106 |
@@ -35,13 +35,13 @@ Error cases CSV: `D:\posture_detection_app\reports\results\error_cases.csv`
 
 | participant_id | rows | accuracy | precision_incorrect | recall_incorrect | f1_incorrect | false_positive | false_negative | mean_prob_incorrect |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| P01 | 1697 | 0.793164 | 0.945988 | 0.659849 | 0.777425 | 35 | 316 | 0.383634 |
+| P01 | 1658 | 0.901689 | 0.956085 | 0.856180 | 0.903379 | 35 | 128 | 0.480408 |
 
 ## By View Angle
 
 | view_angle | rows | accuracy | precision_incorrect | recall_incorrect | f1_incorrect | false_positive | false_negative | mean_prob_incorrect |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| unknown | 1697 | 0.793164 | 0.945988 | 0.659849 | 0.777425 | 35 | 316 | 0.383634 |
+| unknown | 1658 | 0.901689 | 0.956085 | 0.856180 | 0.903379 | 35 | 128 | 0.480408 |
 
 ## Interpretation Notes
 

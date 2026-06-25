@@ -1,0 +1,17 @@
+{
+  "model_id": "random_forest__raw_99",
+  "algorithm": "random_forest",
+  "feature_set": "raw_99",
+  "feature_count": 99,
+  "accuracy": 0.6927129060579456,
+  "precision_incorrect": 0.6491862567811935,
+  "recall_incorrect": 0.9835616438356164,
+  "f1_incorrect": 0.7821350762527233,
+  "macro_f1": 0.6304569647831003,
+  "mcc": 0.4233708348957782,
+  "roc_auc": 0.7320169660766486,
+  "pr_auc": 0.7378966359091417,
+  "brier_score": 0.2226142651448639,
+  "train_seconds": 3.933,
+  "predict_seconds": 0.062
+}

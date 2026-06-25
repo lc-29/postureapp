@@ -1,0 +1,17 @@
+{
+  "model_id": "random_forest__combined_normalized_ergonomic",
+  "algorithm": "random_forest",
+  "feature_set": "combined_normalized_ergonomic",
+  "feature_count": 113,
+  "accuracy": 0.7230026338893767,
+  "precision_incorrect": 0.7683686176836861,
+  "recall_incorrect": 0.7244618395303327,
+  "f1_incorrect": 0.7457695406929895,
+  "macro_f1": 0.720763266007054,
+  "mcc": 0.44302781533826613,
+  "roc_auc": 0.8270482175741876,
+  "pr_auc": 0.8593533272727567,
+  "brier_score": 0.1762726251097454,
+  "train_seconds": 5.357,
+  "predict_seconds": 0.073
+}

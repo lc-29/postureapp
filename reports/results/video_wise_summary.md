@@ -7,16 +7,16 @@ Model: `D:\posture_detection_app\models\ann_best.keras`
 Scaler: `D:\posture_detection_app\models\scaler.pkl`
 Threshold: `0.5000`
 
-Rows: 1697
+Rows: 1658
 Unique source videos: 10
 
 ## Video-wise summary
 
 | Metric | Value |
 |---|---:|
-| Mean video accuracy | 0.824817 |
-| Std video accuracy | 0.287630 |
-| Mean video F1 incorrect | 0.377173 |
+| Mean video accuracy | 0.900001 |
+| Std video accuracy | 0.117696 |
+| Mean video F1 incorrect | 0.459245 |
 
 Per-video metrics saved to `D:\posture_detection_app\reports\results\video_wise_metrics.csv`.
 Source summary saved to `D:\posture_detection_app\reports\results\video_wise_source_summary.csv`.
@@ -25,9 +25,9 @@ Source summary saved to `D:\posture_detection_app\reports\results\video_wise_sou
 
 ```text
                                            source_video  rows  label  accuracy  accuracy_ci_low  accuracy_ci_high  precision   recall       f1  mean_prob_incorrect  false_positive  false_negative
-dataset\external_videos\incorrect\P01_incorrect_004.mp4   239      1  0.029289         0.014258          0.059211        1.0 0.029289 0.056911             0.043355               0             232
-dataset\external_videos\incorrect\P01_incorrect_005.mp4   163      1  0.668712         0.593302          0.736352        1.0 0.668712 0.801471             0.670552               0              54
+dataset\external_videos\incorrect\P01_incorrect_005.mp4   163      1  0.674847         0.599628          0.742014        1.0 0.674847 0.805861             0.682813               0              53
     dataset\external_videos\correct\P01_correct_004.mp4   122      0  0.737705         0.653252          0.807646        0.0 0.000000 0.000000             0.274100              32               0
+dataset\external_videos\incorrect\P01_incorrect_004.mp4   200      1  0.775000         0.712259          0.827376        1.0 0.775000 0.873239             0.769268               0              45
 dataset\external_videos\incorrect\P01_incorrect_001.mp4   155      1  0.916129         0.861799          0.950332        1.0 0.916129 0.956229             0.916541               0              13
 dataset\external_videos\incorrect\P01_incorrect_003.mp4   209      1  0.923445         0.879274          0.952331        1.0 0.923445 0.960199             0.914527               0              16
 ```

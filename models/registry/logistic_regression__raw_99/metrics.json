@@ -1,0 +1,17 @@
+{
+  "model_id": "logistic_regression__raw_99",
+  "algorithm": "logistic_regression",
+  "feature_set": "raw_99",
+  "feature_count": 99,
+  "accuracy": 0.521729587357331,
+  "precision_incorrect": 0.6189873417721519,
+  "recall_incorrect": 0.3827788649706458,
+  "f1_incorrect": 0.47303506650544136,
+  "macro_f1": 0.5176105611811916,
+  "mcc": 0.08543054553135751,
+  "roc_auc": 0.5218627476868218,
+  "pr_auc": 0.5456667725648685,
+  "brier_score": 0.3980659638271125,
+  "train_seconds": 0.812,
+  "predict_seconds": 0.006
+}

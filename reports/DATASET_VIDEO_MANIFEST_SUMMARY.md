@@ -6,27 +6,27 @@ Updated: 2026-05-28
 
 | Item | Value |
 |---|---:|
-| Total videos | 94 |
-| Raw videos | 84 |
-| External videos | 10 |
-| Total duration seconds | 6009.429 |
-| Total duration minutes | 100.157 |
-| Total size MB | 33179.269 |
+| Total videos | 117 |
+| Raw videos | 94 |
+| External videos | 23 |
+| Total duration seconds | 8117.143 |
+| Total duration minutes | 135.286 |
+| Total size MB | 37521.277 |
 
 ## Videos By Dataset And Label
 
 | dataset_split | label_name | count |
 | --- | --- | --- |
-| external | correct | 5 |
-| external | incorrect | 5 |
-| raw | correct | 34 |
-| raw | incorrect | 50 |
+| external | correct | 11 |
+| external | incorrect | 12 |
+| raw | correct | 39 |
+| raw | incorrect | 55 |
 
 ## Raw Participants
 
 | Participant | Count |
 |---|---:|
-| P01 | 19 |
+| P01 | 29 |
 | P02 | 11 |
 | P03 | 18 |
 | P04 | 16 |
@@ -39,12 +39,14 @@ Updated: 2026-05-28
 | front | 24 |
 | side_30 | 17 |
 | side_90 | 43 |
+| unknown | 10 |
 
 ## External Participants
 
 | Participant | Count |
 |---|---:|
-| P01 | 10 |
+| P06 | 10 |
+| P07 | 13 |
 
 ## Notes
 

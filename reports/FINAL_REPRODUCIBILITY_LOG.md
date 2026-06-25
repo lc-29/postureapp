@@ -1,6 +1,13 @@
 # Final Reproducibility Log
 
-Ngay cap nhat: 2026-05-27
+Ngay cap nhat: 2026-05-28
+
+## Correction note
+
+Ngay 2026-05-28, `dataset/external_videos/incorrect/P01_incorrect_004.mp4`
+da duoc thay bang video sai tu the dung sau khi phat hien noi dung cu bi nhap
+nham la video dung tu the. Cac lenh external evaluation ben duoi da duoc chay
+lai tren external dataset da sua.
 
 ## Commands executed
 
@@ -8,7 +15,7 @@ Ngay cap nhat: 2026-05-27
 .\.venv\Scripts\python.exe src/2_extract_features.py --input-root dataset/external_videos --sample-fps 2 --include-metadata --output dataset/processed/posture_external_test_2fps_with_metadata.csv
 ```
 
-Ket qua: tao external metadata CSV voi 1697 rows va 108 columns.
+Ket qua: tao external metadata CSV voi 1658 rows va 108 columns.
 
 ```powershell
 .\.venv\Scripts\python.exe src/6_evaluate_external.py --dataset dataset/processed/posture_external_test_2fps_with_metadata.csv
@@ -16,15 +23,15 @@ Ket qua: tao external metadata CSV voi 1697 rows va 108 columns.
 
 Ket qua chinh:
 
-- Accuracy: 0.793164
-- Precision incorrect: 0.945988
-- Recall incorrect: 0.659849
-- F1 incorrect: 0.777425
-- Macro F1: 0.792125
-- MCC: 0.629328
-- ROC-AUC: 0.950458
-- PR-AUC: 0.957466
-- Brier score: 0.186415
+- Accuracy: 0.901689
+- Precision incorrect: 0.956085
+- Recall incorrect: 0.856180
+- F1 incorrect: 0.903379
+- Macro F1: 0.901659
+- MCC: 0.809012
+- ROC-AUC: 0.982257
+- PR-AUC: 0.985054
+- Brier score: 0.078710
 
 ```powershell
 .\.venv\Scripts\python.exe src/7_video_wise_evaluation.py --dataset dataset/processed/posture_external_test_2fps_with_metadata.csv
@@ -33,9 +40,9 @@ Ket qua chinh:
 Ket qua chinh:
 
 - Unique source videos: 10
-- Mean video accuracy: 0.824817
-- Std video accuracy: 0.287630
-- Mean video F1 incorrect: 0.377173
+- Mean video accuracy: 0.900001
+- Std video accuracy: 0.117696
+- Mean video F1 incorrect: 0.459245
 
 ```powershell
 .\.venv\Scripts\python.exe src/8_compare_algorithms.py --dataset dataset/processed/posture_external_test_2fps_with_metadata.csv
@@ -43,9 +50,9 @@ Ket qua chinh:
 
 Ket qua chinh:
 
-- Random Forest dat accuracy 0.870359 va F1 incorrect 0.883721.
-- ANN dat accuracy 0.793164 va F1 incorrect 0.777425.
-- Rule-based dat accuracy 0.567472 va F1 incorrect 0.646095.
+- SVM RBF dat accuracy 0.911942 va F1 incorrect 0.915802 tren raw landmark benchmark.
+- ANN dat accuracy 0.901689 va F1 incorrect 0.903379.
+- Rule-based dat accuracy 0.674910 va F1 incorrect 0.753994.
 
 ```powershell
 .\.venv\Scripts\python.exe src/9_ablation_study.py --dataset dataset/posture_data_2fps.csv
@@ -96,4 +103,4 @@ Ket qua: `app init ok light 5 0.5`.
 - Full training metadata CSV chua duoc re-extract vi raw train videos lon.
 - Person-wise validation chua hoan thien.
 - GUI screenshots light/dark can chup manual.
-- Random Forest dang tot hon ANN tren external benchmark, nhung chua duoc dong goi vao app.
+- SVM RBF/ergonomic va SVM RBF/raw dang tot hon ANN trong mot so benchmark external, nhung chua duoc dong goi vao app.

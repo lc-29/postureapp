@@ -182,9 +182,9 @@ Da co:
 
 Ket qua hien tai:
 
-- ANN accuracy: `0.793164`, 95% CI `[0.773242, 0.811763]`.
-- Rule-based accuracy: `0.566293`, 95% CI `[0.542591, 0.589697]`.
-- McNemar p-value: `2.19314e-60`.
+- ANN accuracy: `0.901689`, 95% CI `[0.886415, 0.915105]`.
+- Rule-based accuracy: `0.674910`, 95% CI `[0.651981, 0.697029]`.
+- McNemar p-value: `1.15022e-56`.
 
 Can lam tiep:
 

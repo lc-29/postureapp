@@ -1,140 +1,80 @@
 # Dataset Manifest
 
-Ngay cap nhat: 2026-05-28
+Updated: 2026-06-25 03:42:10
 
-## Tong quan
+## Current Protocol
 
-| Hang muc | Gia tri |
-|---|---:|
-| Raw videos - correct | 34 |
-| Raw videos - incorrect | 50 |
-| Raw videos total | 84 |
-| External videos - correct | 5 |
-| External videos - incorrect | 5 |
-| External videos total | 10 |
-| All videos total | 94 |
-| Raw participants | 5 (`P01`-`P05`) |
-| Raw view angles | `front`, `side_30`, `side_90` |
-| Total video duration | 6009.429 seconds |
-| Total video size | 33179.269 MB |
+Cac video external P01 cu da duoc chuyen vao raw/development set. External set final moi gom P06-P07 de danh gia unseen participants.
 
-## Video manifest
+| Split | Videos | Correct Videos | Incorrect Videos | Participants | Purpose |
+|---|---:|---:|---:|---|---|
+| Raw/development | 94 | 39 | 55 | P01-P05 | Train/development |
+| External unseen-participant | 23 | 11 | 12 | P06-P07 | Final external test |
 
-Manifest chuan da duoc tao tai:
+## Manifest Shape
 
-```text
-dataset/metadata/video_manifest.csv
-```
+- File: `dataset/metadata/video_manifest.csv`
+- Shape: `117 x 16`
+- All source videos exist on disk: yes
 
-Report tom tat:
+## Raw Participants
 
-```text
-reports/DATASET_VIDEO_MANIFEST_SUMMARY.md
-```
+| participant_id | label_name | count |
+| --- | --- | --- |
+| P01 | correct | 14 |
+| P01 | incorrect | 15 |
+| P02 | correct | 4 |
+| P02 | incorrect | 7 |
+| P03 | correct | 6 |
+| P03 | incorrect | 12 |
+| P04 | correct | 7 |
+| P04 | incorrect | 9 |
+| P05 | correct | 8 |
+| P05 | incorrect | 12 |
 
-Manifest co cac cot:
+## External Participants
 
-```text
-dataset_split, source_video, file_name, label, label_name, participant_id,
-view_angle, camera_type, duration_sec, fps, width, height, total_frames,
-file_size_mb, sha256, notes
-```
+| participant_id | label_name | count |
+| --- | --- | --- |
+| P06 | correct | 5 |
+| P06 | incorrect | 5 |
+| P07 | correct | 6 |
+| P07 | incorrect | 7 |
 
-## CSV da trich xuat
+## Raw View Angles
 
-| Dataset | File | Rows | Columns |
-|---|---|---:|---:|
-| Raw metadata | `dataset/processed/posture_data_2fps_with_metadata.csv` | 11022 | 108 |
-| External metadata | `dataset/processed/posture_external_test_2fps_with_metadata.csv` | 1697 | 108 |
-| Raw ergonomic | `dataset/processed/posture_data_2fps_ergonomic_features.csv` | 11022 | 23 |
-| External ergonomic | `dataset/processed/posture_external_test_2fps_ergonomic_features.csv` | 1697 | 23 |
-| Raw combined | `dataset/processed/posture_data_2fps_combined_features.csv` | 11022 | 122 |
-| External combined | `dataset/processed/posture_external_test_2fps_combined_features.csv` | 1697 | 122 |
+| view_angle | label_name | count |
+| --- | --- | --- |
+| front | correct | 9 |
+| front | incorrect | 15 |
+| side_30 | correct | 8 |
+| side_30 | incorrect | 9 |
+| side_90 | correct | 17 |
+| side_90 | incorrect | 26 |
+| unknown | correct | 5 |
+| unknown | incorrect | 5 |
 
-## Label distribution
+## External View Angles
 
-| Dataset | Correct (`0`) | Incorrect (`1`) |
-|---|---:|---:|
-| Raw metadata CSV | 4438 | 6584 |
-| External metadata CSV | 768 | 929 |
+| view_angle | label_name | count |
+| --- | --- | --- |
+| front | correct | 3 |
+| front | incorrect | 4 |
+| side_30 | correct | 3 |
+| side_30 | incorrect | 4 |
+| side_90 | correct | 5 |
+| side_90 | incorrect | 4 |
 
-## Raw participants
+## Processed CSVs
 
-| Participant | Video count |
-|---|---:|
-| P01 | 19 |
-| P02 | 11 |
-| P03 | 18 |
-| P04 | 16 |
-| P05 | 20 |
+| File | Shape | Label Distribution | Participants |
+|---|---:|---|---|
+| `dataset/processed/posture_data_2fps_with_metadata.csv` | 12680 x 108 | {0: 5206, 1: 7474} | P01, P02, P03, P04, P05 |
+| `dataset/processed/posture_external_test_2fps_with_metadata.csv` | 4556 x 108 | {0: 2001, 1: 2555} | P06, P07 |
 
-Ghi chu: du lieu da duoc rename sau khi xoa participant cu `P02`. Mapping da ap dung:
+## Notes
 
-| Ma cu | Ma moi |
-|---|---|
-| P01 | P01 |
-| P03 | P02 |
-| P04 | P03 |
-| P05 | P04 |
-| P06 | P05 |
-
-Report doi ten:
-
-```text
-reports/dataset_rename_plan.csv
-```
-
-## Feature schema
-
-### Raw feature set
-
-Moi frame gom 33 MediaPipe Pose landmarks. Moi landmark co 3 toa do:
-
-- `landmark_N_x`
-- `landmark_N_y`
-- `landmark_N_z`
-
-Tong: 99 raw landmark features.
-
-### Metadata columns
-
-CSV metadata co them:
-
-- `source_video`
-- `frame_index`
-- `timestamp_sec`
-- `sample_fps`
-- `video_fps`
-- `participant_id`
-- `view_angle`
-- `camera_type`
-- `label`
-
-### Ergonomic feature set
-
-Mo ta chi tiet tai:
-
-```text
-reports/ERGONOMIC_FEATURES_DESCRIPTION.md
-```
-
-Nhom dac trung ergonomic gom shoulder, torso, head/neck va hand/chin-rest indicators. Visibility khong duoc dung vi CSV 99 feature hien tai khong luu MediaPipe visibility that.
-
-## Kiem chung da co
-
-| Hang muc | File ket qua |
-|---|---|
-| Video-wise evaluation | `reports/results/video_wise_summary.md` |
-| Participant-wise raw | `reports/results/participant_wise_summary_raw.md` |
-| Participant-wise combined | `reports/results/participant_wise_summary_combined.md` |
-| Classifier benchmark external | `reports/BENCHMARK_CLASSIFIERS_SUMMARY.md` |
-| Feature ablation | `reports/FEATURE_ABLATION_SUMMARY.md` |
-| Error analysis | `reports/ERROR_ANALYSIS_BY_VIDEO_PERSON_VIEW.md` |
-| Runtime benchmark | `reports/RUNTIME_BENCHMARK.md` |
-
-## Rui ro du lieu
-
-- External videos hien tai chi co `P01`, nen external test kiem tra video moi nhung chua kiem tra nguoi moi.
-- Raw participant-wise evaluation da duoc bo sung de danh gia theo nguoi, nhung dataset van chi co 5 nguoi nen can trinh bay la preliminary.
-- Raw videos khong nam trong Git do dung luong va rieng tu; metadata va SHA256 duoc luu de kiem chung local.
-- Neu nop hoi thao, nen mo ta ro quy trinh thu thap, tieu chi gan nhan, thiet bi quay va consent/rieng tu.
+- Label `0` means Correct posture; label `1` means Incorrect posture.
+- External set hien chi gom P06-P07 va duoc dung de danh gia nguoi moi.
+- Raw co mot so video P01 legacy khong co view trong ten file, nen `view_angle=unknown` cho phan do.
+- Dataset labels are project-specific and should not be described as expert ergonomic annotation unless additional annotation evidence is added.

@@ -1,6 +1,6 @@
 # Springer Project Audit 2026
 
-Ngay cap nhat: 2026-05-27
+Ngay cap nhat: 2026-05-28
 
 ## Muc tieu
 
@@ -26,11 +26,11 @@ Project da vuot muc demo co ban. Hien tai co:
 
 Nhung neu xet theo chuan Springer, project **chua nen claim state-of-the-art**. Ly do:
 
-- Metric external hien tai: accuracy `79.316%`, F1 incorrect `77.743%`, thap hon nhieu nghien cuu sensor/RGB-D/MediaPipe gan day.
-- Chua co video-wise/person-wise split that vi CSV chua co `source_video`, `frame_index`, `participant_id`.
+- Metric external da sua: ANN accuracy `90.169%`, F1 incorrect `90.338%`; SVM RBF + ergonomic features dat F1 incorrect `95.107%` trong benchmark noi bo.
+- Da co metadata CSV, video-wise evaluation va participant-wise evaluation; tuy nhien external set hien chi co P01 nen chua du manh de claim robust generalization.
 - Dataset con nho va metadata chua day du.
 - ANN hien moi la dense classifier tren 99 landmark raw coordinates, chua co sequence/temporal model.
-- Rule-based baseline huu ich cho giai thich, nhung accuracy external con thap (`56.629%`).
+- Rule-based baseline huu ich cho giai thich, recall incorrect cao nhung accuracy external van thap hon ANN/SVM (`67.491%`).
 
 Vi vay dinh vi khoa hoc nen la:
 
@@ -49,18 +49,18 @@ Nen viet:
 | Thanh phan | Trang thai | Danh gia |
 |---|---|---|
 | Feature extraction | Da co | Dung MediaPipe landmarks, sample 2 FPS, co option metadata. |
-| Dataset CSV | Da co | Train 11022 rows, external 1697 rows; thieu metadata video/person. |
-| ANN model | Da co | External F1 incorrect 77.743%; can them KNN/SVM/RF/XGBoost comparison. |
+| Dataset CSV | Da co | Train 11022 rows, external 1658 rows; da co metadata video/person trong processed CSV. |
+| ANN model | Da co | Corrected external F1 incorrect 90.338%; benchmark cho thay SVM/RF cung la ung vien manh. |
 | Rule-based baseline | Da co | Giai thich tot, metric thap; vua them neck-compression rule. |
 | External evaluation | Da co | Co confusion matrix, threshold sweep. |
 | Statistical inference | Da co | Wilson CI va McNemar paired test. |
-| Video-wise evaluation | Chua runnable | Bi chan do CSV thieu `source_video`, `frame_index`. |
-| Person-wise evaluation | Chua co | Can `participant_id`. |
+| Video-wise evaluation | Da co | Da sinh `reports/results/video_wise_metrics.csv`. |
+| Person-wise evaluation | Da co | Da sinh raw va combined leave-one-participant-out metrics. |
 | Temporal risk index | Da co | Diem moi kha tot, can validate them. |
 | GUI | Da nang cap | Light/dark, dashboard, table, risk; can manual QA/screenshot. |
-| Runtime benchmark | Chua co | Can FPS/latency/CPU/RAM. |
-| Error analysis | Chua co | Can phan tich false negative/false positive. |
-| Model card | Chua co | Can de tai lap va nop paper. |
+| Runtime benchmark | Da co | Co FPS/latency cho front/side_30/side_90. |
+| Error analysis | Da co | Co phan tich false negative/false positive theo video/person/view. |
+| Model card | Da co | `reports/MODEL_CARD_ANN_CURRENT.md`. |
 | Related work | Mot phan | Da co bang so sanh, can citation verified full-text. |
 
 ## Kiem chung hien tai
@@ -84,23 +84,23 @@ python -m py_compile src/1_rule_based_baseline.py src/2_extract_features.py src/
 | Dataset | Rows | Correct | Incorrect | Ghi chu |
 |---|---:|---:|---:|---|
 | Train CSV | 11022 | 4438 | 6584 | Frame-level CSV, chua co metadata video/person. |
-| External CSV | 1697 | 768 | 929 | 10 external videos, frame-level. |
+| External CSV | 1658 | 768 | 890 | 10 external videos, corrected after replacing `P01_incorrect_004.mp4`. |
 
 ### External metrics
 
 | Model | Accuracy | Precision incorrect | Recall incorrect | F1 incorrect |
 |---|---:|---:|---:|---:|
-| ANN threshold 0.5 | 79.316% | 94.599% | 65.985% | 77.743% |
-| ANN best F1 threshold 0.10 | 80.436% | 91.286% | 71.044% | 79.903% |
-| Rule-based | 56.629% | 58.443% | 71.905% | 64.479% |
+| ANN threshold 0.5 | 90.169% | 95.609% | 85.618% | 90.338% |
+| ANN best F1 threshold 0.10 | 91.375% | 92.784% | 91.011% | 91.889% |
+| Rule-based | 67.491% | 63.490% | 92.809% | 75.399% |
 
 ### Statistical analysis
 
 | Hang muc | Gia tri |
 |---|---:|
-| ANN Wilson 95% accuracy CI | [77.324%, 81.176%] |
-| Rule-based Wilson 95% accuracy CI | [54.259%, 58.970%] |
-| McNemar p-value | `2.19314e-60` |
+| ANN Wilson 95% accuracy CI | [88.642%, 91.511%] |
+| Rule-based Wilson 95% accuracy CI | [65.198%, 69.703%] |
+| McNemar p-value | `1.15022e-56` |
 
 Interpretation: ANN vuot rule-based tren paired external frames. Tuy nhien day van la frame-level paired test, khong thay the video-wise/person-wise validation.
 
@@ -121,15 +121,15 @@ Interpretation: ANN vuot rule-based tren paired external frames. Tuy nhien day v
 
 Co, neu xet trong pham vi do an app realtime webcam:
 
-- ANN co precision incorrect cao (`94.599%`) tai threshold 0.5, nghia la khi bao sai thi kha chac.
-- Threshold 0.10 tang recall incorrect tu `65.985%` len `71.044%`, phu hop hon voi canh bao realtime neu muon bot bo sot.
+- ANN co precision incorrect cao (`95.609%`) tai threshold 0.5, nghia la khi bao sai thi kha chac.
+- Threshold 0.10 tang recall incorrect tu `85.618%` len `91.011%`, phu hop hon voi canh bao realtime neu muon bot bo sot.
 - McNemar test cho thay ANN khac biet ro voi rule-based baseline tren external frames.
 
 Chua tot neu xet nhu mot bai research manh:
 
-- Recall incorrect con thap, bo sot nhieu frame sai (`316 FN` tren external).
-- Chua co video-wise/person-wise validation.
-- Chua benchmark KNN/SVM/RF/XGBoost tren cung feature.
+- Van con false negatives (`128 FN` tren external) nen can toi uu threshold/temporal smoothing.
+- Video-wise/person-wise da co, nhung external set chi co P01 va dataset van nho.
+- Da benchmark KNN/SVM/RF/HistGradientBoosting tren cung feature, nhung chua dong goi model tot nhat vao app.
 - Chua co temporal model, trong khi posture monitoring co tinh lien tuc theo thoi gian.
 - Feature la raw landmark coordinates, chua chuan hoa theo co the/goc quay tot.
 
@@ -141,7 +141,7 @@ Ket luan dung:
 
 - Tot hon **baseline rule-based local** tren cung external frames.
 - Co tinh ung dung end-to-end va logging/statistical reporting tot.
-- Kem hon nhieu nghien cuu sensor/RGB-D/MediaPipe gan day ve metric accuracy/F1, nhung cac nghien cuu do dung dataset, sensor, label va split khac.
+- Metric corrected external da canh tranh hon, nhung van khong the ket luan tot hon literature vi cac nghien cuu do dung dataset, sensor, label va split khac.
 
 Bang dinh vi:
 
@@ -207,13 +207,13 @@ Khong nen viet:
 
 ## Diem can phat trien them de bai manh hon
 
-1. Re-extract CSV co metadata: `source_video`, `frame_index`, `participant_id`, `view_angle`.
-2. Implement video-wise/person-wise split.
-3. Benchmark KNN, SVM, Random Forest, XGBoost, Logistic Regression, MLP tren cung split.
-4. Them ROC-AUC, PR-AUC, bootstrap CI cho F1.
-5. Export prediction-level CSV va lam error analysis.
-6. Runtime benchmark: FPS, latency, CPU/RAM.
-7. Model card: dataset, commit hash, feature schema, threshold, dependency versions, intended use.
+1. Mo rong external set sang nhieu participant/camera hon.
+2. Chot protocol final cho video-wise/person-wise split.
+3. Dong goi SVM/RF/ANN theo model registry va feature schema.
+4. Them bootstrap CI cho F1 theo video/person.
+5. Lam error taxonomy cho false negative/false positive.
+6. Bo sung cau hinh may cho runtime benchmark.
+7. Cap nhat model card voi commit hash, feature schema, threshold, dependency versions, intended use.
 8. Figure/table cho paper: pipeline, GUI, confusion matrix, threshold curve, TPRI distribution.
 9. Related work citations can duoc verify tu full paper/PDF.
 10. Manual GUI QA va screenshots.
@@ -239,4 +239,3 @@ Khong nen viet:
 - No person-wise validation yet.
 - Camera angle/lighting/occlusion sensitivity.
 - External recall needs improvement.
-

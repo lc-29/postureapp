@@ -1,0 +1,15 @@
+﻿feature,importance_mean,importance_std
+nose_shoulder_clearance_ratio,0.20344707191389372,0.0
+nose_to_shoulder_y,0.14089538732604232,0.0
+head_shoulder_distance,0.10279742277314444,0.0
+min_hand_mouth_ratio,0.09156565177708735,0.0
+head_offset_x,0.062133565000482414,0.0
+right_hand_mouth_ratio,0.057453579865597126,0.0
+torso_lean_angle,0.05733594657974512,0.0
+chin_rest_detected,0.05648357284699385,0.0
+shoulder_width,0.050654695587963074,0.0
+torso_length,0.049513371920523505,0.0
+left_hand_mouth_ratio,0.04894208586512322,0.0
+shoulder_y_diff,0.04280599564237005,0.0
+shoulder_tilt_angle,0.026083106428473668,0.0
+neck_compression_detected,0.009888546472560145,0.0

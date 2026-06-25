@@ -49,6 +49,46 @@ Chay GUI:
 python src/4_main_desktop_app.py
 ```
 
+## Dang nhap, dang ky va OTP email
+
+Tu phien ban nay, app hien thi man hinh dang nhap/dang ky truoc khi vao
+dashboard. Tai khoan moi dang ky bang email va can nhap ma OTP duoc gui ve
+email de xac thuc.
+
+De gui OTP bang Gmail/SMTP, tao file:
+
+```text
+config/email_otp.local.config
+```
+
+Co the copy tu file mau:
+
+```powershell
+Copy-Item config/email_otp.example.config config/email_otp.local.config
+```
+
+Sau do dien email gui va app password:
+
+```xml
+<add key="fromEmail" value="your_email@gmail.com" />
+<add key="password" value="your_gmail_app_password" />
+<add key="smtpHost" value="smtp.gmail.com" />
+<add key="smtpPort" value="587" />
+<add key="useTls" value="true" />
+```
+
+Voi Gmail, app tu bo khoang trang trong app password. Neu gap loi
+`535 Username and Password not accepted`, hay tao lai Gmail App Password moi
+trong Google Account, bat 2-Step Verification va cap nhat lai file local.
+
+File `config/email_otp.local.config` da duoc `.gitignore`, khong nen commit
+mat khau email len GitHub. Co the dung bien moi truong thay cho file local:
+
+```powershell
+$env:POSTURE_APP_FROM_EMAIL="your_email@gmail.com"
+$env:POSTURE_APP_EMAIL_PASSWORD="your_gmail_app_password"
+```
+
 App mac dinh dung:
 
 - Model: `models/ann_best.keras`

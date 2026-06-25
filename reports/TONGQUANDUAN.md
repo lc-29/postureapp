@@ -103,17 +103,17 @@ Ket qua external test hien tai:
 
 | Chi so | Gia tri |
 |---|---:|
-| So frame external test | 1697 |
-| Accuracy | 79.316% |
-| Precision lop sai tu the | 94.599% |
-| Recall lop sai tu the | 65.985% |
-| F1-score lop sai tu the | 77.743% |
-| Macro F1 | 79.213% |
-| MCC | 62.933% |
-| ROC-AUC | 95.046% |
-| PR-AUC | 95.747% |
+| So frame external test | 1658 |
+| Accuracy | 90.169% |
+| Precision lop sai tu the | 95.609% |
+| Recall lop sai tu the | 85.618% |
+| F1-score lop sai tu the | 90.338% |
+| Macro F1 | 90.166% |
+| MCC | 80.901% |
+| ROC-AUC | 98.226% |
+| PR-AUC | 98.505% |
 
-Tai threshold 0.5, mo hinh co precision cao voi lop sai tu the, nghia la khi he thong bao sai thi kha chac. Tuy nhien recall con thap, nghia la van co mot so frame sai tu the bi bo sot. Khi giam threshold xuong 0.10, F1 lop sai tang len khoang 79.903%, phu hop hon voi bai toan canh bao neu uu tien giam bo sot.
+Tai threshold 0.5, mo hinh co precision cao voi lop sai tu the, nghia la khi he thong bao sai thi kha chac. Recall da tang manh sau khi sua video external bi nhap nham noi dung, nhung van con 128 frame sai tu the bi bo sot. Khi giam threshold xuong 0.10, F1 lop sai tang len khoang 91.889%, phu hop hon voi bai toan canh bao neu uu tien giam bo sot.
 
 ## 4. Neu thay hoi: Diem moi cua du an la gi?
 
@@ -326,7 +326,7 @@ Tra loi:
 
 Tra loi:
 
-> Tren external test 1697 frame, ANN dat accuracy khoang 79.3%, F1 lop sai khoang 77.7%, ROC-AUC khoang 95.0% va PR-AUC khoang 95.7%. Ket qua nay tot hon rule-based baseline trong du an, nhung em chua claim tot hon cac nghien cuu khac vi dataset, sensor va protocol khac nhau.
+> Tren corrected external test 1658 frame, ANN dat accuracy khoang 90.2%, F1 lop sai khoang 90.3%, ROC-AUC khoang 98.2% va PR-AUC khoang 98.5%. Ket qua nay tot hon rule-based baseline trong du an, nhung em chua claim tot hon cac nghien cuu khac vi dataset, sensor va protocol khac nhau.
 
 ### Cau hoi 5: Tai sao precision cao nhung recall chua cao?
 

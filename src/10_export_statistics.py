@@ -31,6 +31,7 @@ def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
 def export_statistics(args: argparse.Namespace) -> None:
     db_path = Path(args.database)
     output_dir = Path(args.output_dir)
+    user_id = int(args.user_id) if args.user_id is not None else None
     if not db_path.is_absolute():
         db_path = BASE_DIR / db_path
     if not output_dir.is_absolute():
@@ -51,7 +52,27 @@ def export_statistics(args: argparse.Namespace) -> None:
                 print(f"Missing table {table_name}; wrote empty file: {output_path}")
                 continue
 
-            df = pd.read_sql_query(f"SELECT * FROM {table_name}", connection)
+            if user_id is None:
+                df = pd.read_sql_query(f"SELECT * FROM {table_name}", connection)
+            elif table_name in {"PhienLamViec", "ThongKeNgay"}:
+                df = pd.read_sql_query(
+                    f"SELECT * FROM {table_name} WHERE maNguoiDung = ?",
+                    connection,
+                    params=(user_id,),
+                )
+            elif table_name == "NhatKyTuThe":
+                df = pd.read_sql_query(
+                    """
+                    SELECT nk.*
+                    FROM NhatKyTuThe nk
+                    JOIN PhienLamViec plv ON plv.maPhien = nk.maPhien
+                    WHERE plv.maNguoiDung = ?
+                    """,
+                    connection,
+                    params=(user_id,),
+                )
+            else:
+                df = pd.read_sql_query(f"SELECT * FROM {table_name}", connection)
             df.to_csv(output_path, index=False, encoding="utf-8-sig")
             print(f"Exported {len(df)} rows from {table_name} to {output_path}")
 
@@ -60,6 +81,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export SQLite statistics to CSV.")
     parser.add_argument("--database", default=str(DEFAULT_DB))
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--user-id", type=int, default=None)
     return parser.parse_args()
 
 

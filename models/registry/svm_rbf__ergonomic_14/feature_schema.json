@@ -1,0 +1,38 @@
+{
+  "schema_version": "2026-05-28",
+  "feature_set": "ergonomic_14",
+  "columns": [
+    "shoulder_y_diff",
+    "shoulder_tilt_angle",
+    "torso_lean_angle",
+    "head_offset_x",
+    "nose_to_shoulder_y",
+    "nose_shoulder_clearance_ratio",
+    "neck_compression_detected",
+    "left_hand_mouth_ratio",
+    "right_hand_mouth_ratio",
+    "chin_rest_detected",
+    "shoulder_width",
+    "torso_length",
+    "head_shoulder_distance",
+    "min_hand_mouth_ratio"
+  ],
+  "metadata_columns": [
+    "source_video",
+    "frame_index",
+    "timestamp_sec",
+    "sample_fps",
+    "video_fps",
+    "participant_id",
+    "view_angle",
+    "camera_type"
+  ],
+  "supported_feature_sets": [
+    "raw_99",
+    "normalized_99",
+    "ergonomic_14",
+    "combined_raw_ergonomic",
+    "combined_normalized_ergonomic"
+  ],
+  "notes": "raw_99 uses MediaPipe x/y/z landmarks; normalized_99 centers on the shoulder midpoint and scales by max(shoulder_width, torso_length); ergonomic_14 contains interpretable geometric posture indicators."
+}

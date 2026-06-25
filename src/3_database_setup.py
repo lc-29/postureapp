@@ -19,6 +19,7 @@ DATABASE_PATH = BASE_DIR / DB_RELATIVE_PATH
 
 REQUIRED_TABLES = [
     "CaiDat",
+    "EmailOtp",
     "NguoiDung",
     "NhatKyTuThe",
     "PhienLamViec",
@@ -28,6 +29,7 @@ REQUIRED_TABLES = [
 
 ROW_COUNT_TABLES = [
     "NguoiDung",
+    "EmailOtp",
     "CaiDat",
     "PhienLamViec",
     "NhatKyTuThe",
@@ -37,6 +39,7 @@ ROW_COUNT_TABLES = [
 
 REQUIRED_INDEXES = [
     "idx_caidat_maNguoiDung",
+    "idx_emailotp_user_purpose",
     "idx_phien_maNguoiDung",
     "idx_phien_thoiGianBatDau",
     "idx_nhatky_maPhien",
@@ -87,10 +90,17 @@ def create_tables(connection: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS NguoiDung (
             maNguoiDung INTEGER PRIMARY KEY AUTOINCREMENT,
             tenDangNhap TEXT NOT NULL UNIQUE,
+            email TEXT UNIQUE,
+            matKhauHash TEXT,
+            matKhauSalt TEXT,
+            emailDaXacThuc INTEGER NOT NULL DEFAULT 0,
+            ngayCapNhat TEXT,
+            lanDangNhapCuoi TEXT,
             ngayTao TEXT NOT NULL
         )
         """
     )
+    ensure_nguoidung_auth_columns(connection)
 
     # Bảng lưu các tham số cấu hình đang được app sử dụng.
     cursor.execute(
@@ -171,7 +181,8 @@ def create_tables(connection: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS ThongKeNgay (
             maThongKe INTEGER PRIMARY KEY AUTOINCREMENT,
-            ngay TEXT NOT NULL UNIQUE,
+            maNguoiDung INTEGER NOT NULL,
+            ngay TEXT NOT NULL,
             tongSoPhien INTEGER DEFAULT 0,
             tongThoiGianLamViec REAL DEFAULT 0,
             tongThoiGianDung REAL DEFAULT 0,
@@ -179,10 +190,15 @@ def create_tables(connection: sqlite3.Connection) -> None:
             tongSoCanhBao INTEGER DEFAULT 0,
             tiLeDung REAL DEFAULT 0,
             tiLeSai REAL DEFAULT 0,
-            ngayCapNhat TEXT NOT NULL
+            ngayCapNhat TEXT NOT NULL,
+            UNIQUE (maNguoiDung, ngay),
+            FOREIGN KEY (maNguoiDung)
+                REFERENCES NguoiDung(maNguoiDung)
+                ON DELETE CASCADE
         )
         """
     )
+    ensure_thongke_ngay_user_scope(connection)
 
     # Bảng lưu thông tin model ANN đang được ứng dụng sử dụng.
     cursor.execute(
@@ -206,6 +222,220 @@ def create_tables(connection: sqlite3.Connection) -> None:
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS EmailOtp (
+            maOtp INTEGER PRIMARY KEY AUTOINCREMENT,
+            maNguoiDung INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            otpHash TEXT NOT NULL,
+            otpSalt TEXT NOT NULL,
+            mucDich TEXT NOT NULL DEFAULT 'register',
+            hetHanLuc TEXT NOT NULL,
+            daSuDung INTEGER NOT NULL DEFAULT 0,
+            soLanThu INTEGER NOT NULL DEFAULT 0,
+            ngayTao TEXT NOT NULL,
+            FOREIGN KEY (maNguoiDung)
+                REFERENCES NguoiDung(maNguoiDung)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def ensure_nguoidung_auth_columns(connection: sqlite3.Connection) -> None:
+    """Them cac cot auth vao database cu ma khong lam mat du lieu demo."""
+    rows = connection.execute("PRAGMA table_info(NguoiDung)").fetchall()
+    column_names = {str(row[1]) for row in rows}
+    migrations = {
+        "email": "ALTER TABLE NguoiDung ADD COLUMN email TEXT",
+        "matKhauHash": "ALTER TABLE NguoiDung ADD COLUMN matKhauHash TEXT",
+        "matKhauSalt": "ALTER TABLE NguoiDung ADD COLUMN matKhauSalt TEXT",
+        "emailDaXacThuc": (
+            "ALTER TABLE NguoiDung ADD COLUMN emailDaXacThuc INTEGER NOT NULL DEFAULT 0"
+        ),
+        "ngayCapNhat": "ALTER TABLE NguoiDung ADD COLUMN ngayCapNhat TEXT",
+        "lanDangNhapCuoi": "ALTER TABLE NguoiDung ADD COLUMN lanDangNhapCuoi TEXT",
+    }
+    for column_name, sql in migrations.items():
+        if column_name not in column_names:
+            connection.execute(sql)
+
+
+def table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = connection.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+    return {str(row[1]) for row in rows}
+
+
+def has_global_day_unique_index(connection: sqlite3.Connection) -> bool:
+    """Kiem tra schema cu: ThongKeNgay chi unique theo ngay, chua theo user."""
+    for index_row in connection.execute('PRAGMA index_list("ThongKeNgay")').fetchall():
+        if int(index_row[2]) != 1:
+            continue
+        index_name = str(index_row[1])
+        index_columns = [
+            str(row[2])
+            for row in connection.execute(f'PRAGMA index_info("{index_name}")').fetchall()
+        ]
+        if index_columns == ["ngay"]:
+            return True
+    return False
+
+
+def get_default_user_id(connection: sqlite3.Connection) -> int | None:
+    row = connection.execute(
+        """
+        SELECT maNguoiDung
+        FROM NguoiDung
+        WHERE tenDangNhap = 'Admin'
+        ORDER BY maNguoiDung ASC
+        LIMIT 1
+        """
+    ).fetchone()
+    if row is not None:
+        return int(row[0])
+
+    row = connection.execute(
+        "SELECT maNguoiDung FROM NguoiDung ORDER BY maNguoiDung ASC LIMIT 1"
+    ).fetchone()
+    return int(row[0]) if row is not None else None
+
+
+def create_user_scoped_thongke_ngay(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ThongKeNgay (
+            maThongKe INTEGER PRIMARY KEY AUTOINCREMENT,
+            maNguoiDung INTEGER NOT NULL,
+            ngay TEXT NOT NULL,
+            tongSoPhien INTEGER DEFAULT 0,
+            tongThoiGianLamViec REAL DEFAULT 0,
+            tongThoiGianDung REAL DEFAULT 0,
+            tongThoiGianSai REAL DEFAULT 0,
+            tongSoCanhBao INTEGER DEFAULT 0,
+            tiLeDung REAL DEFAULT 0,
+            tiLeSai REAL DEFAULT 0,
+            ngayCapNhat TEXT NOT NULL,
+            UNIQUE (maNguoiDung, ngay),
+            FOREIGN KEY (maNguoiDung)
+                REFERENCES NguoiDung(maNguoiDung)
+                ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def rebuild_thongke_ngay_from_sessions(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        INSERT OR REPLACE INTO ThongKeNgay (
+            maNguoiDung,
+            ngay,
+            tongSoPhien,
+            tongThoiGianLamViec,
+            tongThoiGianDung,
+            tongThoiGianSai,
+            tongSoCanhBao,
+            tiLeDung,
+            tiLeSai,
+            ngayCapNhat
+        )
+        SELECT
+            maNguoiDung,
+            substr(thoiGianBatDau, 1, 10) AS ngay,
+            COUNT(*) AS tongSoPhien,
+            SUM(
+                CASE
+                    WHEN thoiGianKetThuc IS NOT NULL
+                        AND thoiGianKetThuc != ''
+                        AND thoiGianBatDau IS NOT NULL
+                        AND thoiGianBatDau != ''
+                    THEN max(
+                        0,
+                        (julianday(thoiGianKetThuc) - julianday(thoiGianBatDau)) * 86400.0
+                    )
+                    ELSE COALESCE(tongThoiGianDung, 0) + COALESCE(tongThoiGianSai, 0)
+                END
+            ) AS tongThoiGianLamViec,
+            SUM(COALESCE(tongThoiGianDung, 0)) AS tongThoiGianDung,
+            SUM(COALESCE(tongThoiGianSai, 0)) AS tongThoiGianSai,
+            SUM(COALESCE(soLanCanhBao, 0)) AS tongSoCanhBao,
+            0 AS tiLeDung,
+            0 AS tiLeSai,
+            max(COALESCE(thoiGianKetThuc, thoiGianBatDau, datetime('now'))) AS ngayCapNhat
+        FROM PhienLamViec
+        WHERE maNguoiDung IS NOT NULL
+            AND thoiGianBatDau IS NOT NULL
+            AND thoiGianBatDau != ''
+        GROUP BY maNguoiDung, substr(thoiGianBatDau, 1, 10)
+        """
+    )
+    connection.execute(
+        """
+        UPDATE ThongKeNgay
+        SET
+            tiLeDung = CASE
+                WHEN tongThoiGianLamViec > 0
+                THEN tongThoiGianDung / tongThoiGianLamViec
+                ELSE 0
+            END,
+            tiLeSai = CASE
+                WHEN tongThoiGianLamViec > 0
+                THEN tongThoiGianSai / tongThoiGianLamViec
+                ELSE 0
+            END
+        """
+    )
+
+
+def ensure_thongke_ngay_user_scope(connection: sqlite3.Connection) -> None:
+    """Migrate ThongKeNgay cu sang thong ke rieng theo maNguoiDung + ngay."""
+    columns = table_columns(connection, "ThongKeNgay")
+    needs_migration = "maNguoiDung" not in columns or has_global_day_unique_index(connection)
+    if not needs_migration:
+        return
+
+    legacy_table = "ThongKeNgay_legacy_user_scope"
+    connection.execute(f'DROP TABLE IF EXISTS "{legacy_table}"')
+    connection.execute(f'ALTER TABLE ThongKeNgay RENAME TO "{legacy_table}"')
+    create_user_scoped_thongke_ngay(connection)
+
+    default_user_id = get_default_user_id(connection)
+    if default_user_id is not None:
+        connection.execute(
+            f"""
+            INSERT OR IGNORE INTO ThongKeNgay (
+                maNguoiDung,
+                ngay,
+                tongSoPhien,
+                tongThoiGianLamViec,
+                tongThoiGianDung,
+                tongThoiGianSai,
+                tongSoCanhBao,
+                tiLeDung,
+                tiLeSai,
+                ngayCapNhat
+            )
+            SELECT
+                ?,
+                ngay,
+                tongSoPhien,
+                tongThoiGianLamViec,
+                tongThoiGianDung,
+                tongThoiGianSai,
+                tongSoCanhBao,
+                tiLeDung,
+                tiLeSai,
+                ngayCapNhat
+            FROM "{legacy_table}"
+            WHERE ngay IS NOT NULL
+            """,
+            (default_user_id,),
+        )
+
+    rebuild_thongke_ngay_from_sessions(connection)
+    connection.execute(f'DROP TABLE IF EXISTS "{legacy_table}"')
+
 
 def create_indexes(connection: sqlite3.Connection) -> None:
     """
@@ -217,6 +447,19 @@ def create_indexes(connection: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_caidat_maNguoiDung
         ON CaiDat(maNguoiDung)
+        """
+    )
+    cursor.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_nguoidung_email
+        ON NguoiDung(email)
+        WHERE email IS NOT NULL
+        """
+    )
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_emailotp_user_purpose
+        ON EmailOtp(maNguoiDung, mucDich, daSuDung, hetHanLuc)
         """
     )
     cursor.execute(
@@ -253,6 +496,12 @@ def create_indexes(connection: sqlite3.Connection) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_thongke_ngay
         ON ThongKeNgay(ngay)
+        """
+    )
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_thongke_user_ngay
+        ON ThongKeNgay(maNguoiDung, ngay)
         """
     )
 
@@ -490,6 +739,7 @@ def smoke_test(db_path: Path) -> None:
 
         expected_counts = {
             "NguoiDung": 1,
+            "EmailOtp": 0,
             "CaiDat": 1,
             "PhienLamViec": 0,
             "NhatKyTuThe": 0,

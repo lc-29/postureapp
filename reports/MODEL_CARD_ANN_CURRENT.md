@@ -1,6 +1,6 @@
 # Model Card ANN Current
 
-Ngay cap nhat: 2026-05-27
+Ngay cap nhat: 2026-05-28
 
 ## Model identity
 
@@ -12,7 +12,7 @@ Ngay cap nhat: 2026-05-27
 | Task | Frame-level sitting posture classification |
 | Output | Probability for `incorrect` posture |
 | Default decision threshold | `0.50` |
-| Suggested alert threshold to review | `0.10` from external F1 sweep |
+| Suggested alert threshold to review | `0.10` from corrected external F1 sweep |
 | Label schema | `0=correct`, `1=incorrect` |
 
 ## Intended use
@@ -43,12 +43,16 @@ CSV gom 33 MediaPipe Pose landmarks, moi landmark co 3 toa do `x/y/z`, va cot `l
 
 | Hang muc | Gia tri |
 |---|---:|
-| External CSV | `dataset/posture_external_test_2fps.csv` |
-| Rows | 1697 |
-| Columns | 100 |
+| External CSV | `dataset/processed/posture_external_test_2fps_with_metadata.csv` |
+| Rows | 1658 |
+| Columns | 108 |
 | Correct frames | 768 |
-| Incorrect frames | 929 |
+| Incorrect frames | 890 |
 | External videos | 10 |
+
+Ngay 2026-05-28, `P01_incorrect_004.mp4` trong external set da duoc thay
+bang video sai tu the dung sau khi phat hien noi dung cu bi nhap nham la video
+dung tu the. Metrics ben duoi da duoc chay lai tren external CSV da sua.
 
 ## Feature schema
 
@@ -97,15 +101,15 @@ Nguon: `reports/results/external_metrics.txt`.
 
 | Threshold | Accuracy | Precision incorrect | Recall incorrect | F1 incorrect |
 |---:|---:|---:|---:|---:|
-| 0.50 | 79.316% | 94.599% | 65.985% | 77.743% |
-| 0.10 | 80.436% | 91.286% | 71.044% | 79.903% |
+| 0.50 | 90.169% | 95.609% | 85.618% | 90.338% |
+| 0.10 | 91.375% | 92.784% | 91.011% | 91.889% |
 
 Confusion matrix tai threshold 0.50:
 
 |  | Pred correct | Pred incorrect |
 |---|---:|---:|
 | True correct | 733 | 35 |
-| True incorrect | 316 | 613 |
+| True incorrect | 128 | 762 |
 
 ## Comparison with local baseline
 
@@ -113,26 +117,26 @@ Nguon: `reports/results/algorithm_comparison.csv` va `reports/results/statistica
 
 | Model | Accuracy | Precision incorrect | Recall incorrect | F1 incorrect |
 |---|---:|---:|---:|---:|
-| ANN threshold 0.50 | 79.316% | 94.599% | 65.985% | 77.743% |
-| Rule-based baseline | 56.629% | 58.443% | 71.905% | 64.479% |
+| ANN threshold 0.50 | 90.169% | 95.609% | 85.618% | 90.338% |
+| Rule-based baseline | 67.491% | 63.490% | 92.809% | 75.399% |
 
-ANN co accuracy va F1 cao hon baseline rule-based tren external frame-level set. McNemar paired test co p-value `2.19314e-60`, cho thay khac biet co y nghia thong ke tren tap frame hien tai.
+ANN co accuracy va F1 cao hon baseline rule-based tren corrected external frame-level set. McNemar paired test co p-value `1.15022e-56`, cho thay khac biet co y nghia thong ke tren tap frame hien tai.
 
 ## Known limitations
 
-- External recall incorrect con thap, bo sot `316` incorrect frames tai threshold 0.50.
-- Chua co video-wise/person-wise split vi CSV thieu metadata.
-- Chua benchmark Logistic Regression, KNN, SVM, Random Forest, XGBoost tren cung split.
+- Van con `128` incorrect frames bi bo sot tai threshold 0.50.
+- Da co metadata external va video-wise evaluation, nhung external set hien chi co P01.
+- Da benchmark Logistic Regression, KNN, SVM, Random Forest, HistGradientBoosting tren cung split; can dong goi model tot nhat vao app neu thay ANN.
 - Raw landmark coordinates chua duoc normalize theo body scale/camera position.
-- Chua co ROC-AUC, PR-AUC, MCC, calibration curve trong evaluator hien tai.
-- Chua co runtime/latency benchmark.
+- Da co ROC-AUC, PR-AUC, MCC va calibration curve trong evaluator hien tai.
+- Da co runtime/latency benchmark.
 - Chua co clinical/ergonomic validation.
 
 ## Recommended next actions
 
-1. Re-extract CSV co `source_video`, `frame_index`, `timestamp_sec`.
-2. Chay video-wise evaluation.
-3. Benchmark nhieu model tabular.
+1. Chot model final cho app: ANN hien tai hay SVM/RF theo benchmark moi.
+2. Chay them external video cua nguoi khac de kiem tra generalization.
+3. Retrain ANN/SVM/RF voi normalized + ergonomic features.
 4. Them ROC/PR/calibration va prediction CSV.
 5. Them temporal smoothing vao app.
 6. Cap nhat threshold mac dinh dua tren muc tieu san pham: precision cao hay recall cao.
@@ -141,4 +145,4 @@ ANN co accuracy va F1 cao hon baseline rule-based tren external frame-level set.
 
 Statement an toan de dua vao bao cao:
 
-> The ANN model significantly outperformed the local rule-based baseline on the external frame-level test set. However, video-wise/person-wise validation and broader algorithm benchmarks are required before claiming robust generalization or superiority over external methods.
+> The ANN model significantly outperformed the local rule-based baseline on the corrected external frame-level test set. However, broader participant-independent validation is required before claiming robust generalization or superiority over external methods.

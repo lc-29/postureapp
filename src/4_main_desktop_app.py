@@ -14,6 +14,7 @@ Chuc nang chinh:
 from __future__ import annotations
 
 import os
+import json
 import math
 import subprocess
 import sqlite3
@@ -35,13 +36,42 @@ import customtkinter as ctk
 import joblib
 import mediapipe as mp
 import numpy as np
+import pandas as pd
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 from tensorflow.keras.models import load_model
 
 try:
-    from statistics_service import get_dashboard_data
+    from statistics_service import (
+        ensure_user_scoped_statistics_schema,
+        get_dashboard_data,
+    )
 except ImportError:
-    from src.statistics_service import get_dashboard_data
+    from src.statistics_service import (
+        ensure_user_scoped_statistics_schema,
+        get_dashboard_data,
+    )
+
+try:
+    from auth_service import (
+        AuthError,
+        authenticate_user,
+        ensure_auth_schema,
+        register_and_send_otp,
+        verify_registration_otp,
+    )
+except ImportError:
+    from src.auth_service import (
+        AuthError,
+        authenticate_user,
+        ensure_auth_schema,
+        register_and_send_otp,
+        verify_registration_otp,
+    )
+
+try:
+    from feature_schema import build_feature_matrix
+except ImportError:
+    from src.feature_schema import build_feature_matrix
 
 try:
     from runtime_paths import (
@@ -72,7 +102,37 @@ BASE_DIR = app_base_dir()
 DATABASE_PATH = writable_database_path()
 MODEL_PATH = resource_path(Path("models") / "ann_best.keras")
 SCALER_PATH = resource_path(Path("models") / "scaler.pkl")
+HGB_BALANCED_MODE_NAME = "HistGradientBoosting (balanced best)"
+HGB_HIGH_RECALL_MODE_NAME = "HistGradientBoosting (high recall demo)"
+LEGACY_HGB_MODE_NAME = "HistGradientBoosting (best)"
+HGB_MODE_CONFIGS: dict[str, dict[str, Any]] = {
+    HGB_BALANCED_MODE_NAME: {
+        "model_id": "hist_gradient_boosting__ergonomic_v2_with_view",
+        "feature_set": "ergonomic_v2_with_view",
+        "fallback_threshold": 0.76,
+        "purpose": "Ket qua khoa hoc can bang FP/FN",
+    },
+    HGB_HIGH_RECALL_MODE_NAME: {
+        "model_id": "hist_gradient_boosting__normalized_99",
+        "feature_set": "normalized_99",
+        "fallback_threshold": 0.50,
+        "purpose": "Demo realtime uu tien it bo sot tu the sai",
+    },
+}
+HGB_DEFAULT_THRESHOLD = 0.50
 ALARM_PATH = resource_path(Path("assets") / "sounds" / "alarm.wav")
+DEFAULT_CONFIG_DATA: dict[str, Any] = {
+    "nguonCamera": "0",
+    "thoiGianCanhBao": 5,
+    "thoiGianChoCanhBao": 15,
+    "batAmThanh": 1,
+    "duongDanAmThanh": "assets/sounds/alarm.wav",
+    "duongDanModel": "models/ann_best.keras",
+    "duongDanScaler": "models/scaler.pkl",
+    "cheDoGiaoDien": "light",
+    "smoothingWindowFrames": 5,
+    "smoothingThreshold": 0.5,
+}
 
 NUM_POSE_LANDMARKS = 33
 FEATURES_PER_LANDMARK = 3
@@ -682,6 +742,10 @@ class PostureApp(ctk.CTk):
         # Thanh phan AI va video.
         self.model: Any | None = None
         self.scaler: Any | None = None
+        self.hgb_model: Any | None = None
+        self.hgb_model_id: str | None = None
+        self.hgb_feature_set: str | None = None
+        self.hgb_threshold = HGB_DEFAULT_THRESHOLD
         self.pose: Any | None = None
         self.cap: cv2.VideoCapture | None = None
         self.capture_thread: threading.Thread | None = None
@@ -699,6 +763,7 @@ class PostureApp(ctk.CTk):
         self.current_user_id: int | None = None
         self.current_source: int | str | None = None
         self.current_source_type = "webcam"
+        self.video_rotation_degrees = 0
         self.frame_index = 0
         self.total_frames = 0
         self.correct_frames = 0
@@ -734,31 +799,20 @@ class PostureApp(ctk.CTk):
         self.update_after_id: str | None = None
         self.metric_labels: dict[str, ctk.CTkLabel] = {}
         self.current_theme_mode = "light"
+        self.pending_register_email: str | None = None
+        self.auth_busy = False
 
         # Anh hien thi tren Tkinter can giu reference de khong bi garbage collect.
         self.video_image: ImageTk.PhotoImage | None = None
 
         # Cau hinh mac dinh neu database chua doc duoc.
-        self.config_data = {
-            "nguonCamera": "0",
-            "thoiGianCanhBao": 5,
-            "thoiGianChoCanhBao": 15,
-            "batAmThanh": 1,
-            "duongDanAmThanh": "assets/sounds/alarm.wav",
-            "duongDanModel": "models/ann_best.keras",
-            "duongDanScaler": "models/scaler.pkl",
-            "cheDoGiaoDien": "light",
-            "smoothingWindowFrames": 5,
-            "smoothingThreshold": 0.5,
-        }
+        self.config_data = dict(DEFAULT_CONFIG_DATA)
 
         self.set_theme_mode("light", rebuild=False)
         ctk.set_default_color_theme("blue")
 
-        self.create_widgets()
-        self.initialize_from_database()
-        self.update_status_ui("DANG_KIEM_TRA", None)
-        self.update_counter_labels()
+        self.ensure_auth_database()
+        self.show_auth_screen()
 
     # =========================
     # Khoi tao UI
@@ -802,6 +856,296 @@ class PostureApp(ctk.CTk):
     def on_theme_changed(self, selected_mode: str) -> None:
         """Xu ly nguoi dung chon Light/Dark mode."""
         self.set_theme_mode(selected_mode.lower(), rebuild=True)
+
+    def ensure_auth_database(self) -> None:
+        """Dam bao database co cac cot/bang phuc vu dang nhap va OTP."""
+        connection = get_db_connection()
+        try:
+            ensure_auth_schema(connection)
+            ensure_user_scoped_statistics_schema(connection)
+        finally:
+            connection.close()
+
+    def clear_root_widgets(self) -> None:
+        """Xoa toan bo widget hien co tren cua so goc."""
+        for child in self.winfo_children():
+            child.destroy()
+
+    def show_auth_screen(self) -> None:
+        """Hien thi man hinh dang nhap/dang ky truoc khi vao app chinh."""
+        self.clear_root_widgets()
+        self.configure(fg_color=THEME["app_bg"])
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=0)
+        self.grid_rowconfigure(0, weight=1)
+
+        self.auth_container = ctk.CTkFrame(self, fg_color=THEME["app_bg"])
+        self.auth_container.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.auth_container.grid_columnconfigure(0, weight=1)
+        self.auth_container.grid_rowconfigure(0, weight=1)
+
+        self.auth_card = ctk.CTkFrame(
+            self.auth_container,
+            fg_color=THEME["surface"],
+            border_color=THEME["border"],
+            border_width=1,
+            corner_radius=8,
+        )
+        self.auth_card.grid(row=0, column=0, padx=24, pady=24)
+        self.auth_card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            self.auth_card,
+            text="Posture Detection App",
+            font=ctk.CTkFont(family=APP_FONT_FAMILY, size=24, weight="bold"),
+            text_color=THEME["text"],
+        ).grid(row=0, column=0, padx=28, pady=(28, 6), sticky="w")
+        ctk.CTkLabel(
+            self.auth_card,
+            text="Dang nhap hoac dang ky bang email de bat dau phien lam viec.",
+            font=ctk.CTkFont(family=APP_FONT_FAMILY, size=13),
+            text_color=THEME["muted"],
+        ).grid(row=1, column=0, padx=28, pady=(0, 18), sticky="w")
+
+        self.auth_mode_segment = ctk.CTkSegmentedButton(
+            self.auth_card,
+            values=["Dang nhap", "Dang ky"],
+            command=self.on_auth_mode_changed,
+        )
+        self.auth_mode_segment.grid(row=2, column=0, padx=28, pady=(0, 18), sticky="ew")
+        self.auth_mode_segment.set("Dang nhap")
+
+        self.auth_form_frame = ctk.CTkFrame(self.auth_card, fg_color="transparent")
+        self.auth_form_frame.grid(row=3, column=0, padx=28, pady=(0, 20), sticky="ew")
+        self.auth_form_frame.grid_columnconfigure(0, weight=1)
+
+        self.auth_status_label = ctk.CTkLabel(
+            self.auth_card,
+            text="",
+            font=ctk.CTkFont(family=APP_FONT_FAMILY, size=12),
+            text_color=THEME["muted"],
+            wraplength=420,
+            justify="left",
+        )
+        self.auth_status_label.grid(row=4, column=0, padx=28, pady=(0, 22), sticky="ew")
+
+        self.render_login_form()
+
+    def on_auth_mode_changed(self, selected_mode: str) -> None:
+        """Chuyen giua form dang nhap va dang ky."""
+        if selected_mode == "Dang ky":
+            self.render_register_form()
+        else:
+            self.render_login_form()
+
+    def clear_auth_form(self) -> None:
+        for child in self.auth_form_frame.winfo_children():
+            child.destroy()
+        self.set_auth_status("")
+
+    def set_auth_status(self, message: str, error: bool = False) -> None:
+        if hasattr(self, "auth_status_label"):
+            self.auth_status_label.configure(
+                text=message,
+                text_color=THEME["danger"] if error else THEME["muted"],
+            )
+
+    def set_auth_busy(self, busy: bool) -> None:
+        self.auth_busy = busy
+        state = "disabled" if busy else "normal"
+        for attr_name in (
+            "login_button",
+            "send_otp_button",
+            "verify_otp_button",
+            "auth_mode_segment",
+        ):
+            widget = getattr(self, attr_name, None)
+            if widget is not None:
+                try:
+                    widget.configure(state=state)
+                except Exception:
+                    pass
+
+    def add_auth_entry(
+        self,
+        row: int,
+        label: str,
+        show: str | None = None,
+    ) -> ctk.CTkEntry:
+        ctk.CTkLabel(
+            self.auth_form_frame,
+            text=label,
+            font=ctk.CTkFont(family=APP_FONT_FAMILY, size=13),
+            text_color=THEME["muted"],
+        ).grid(row=row, column=0, pady=(0, 6), sticky="w")
+        entry = ctk.CTkEntry(
+            self.auth_form_frame,
+            height=34,
+            show=show,
+            border_color=THEME["border"],
+            fg_color=THEME["surface_subtle"],
+            text_color=THEME["text"],
+        )
+        entry.grid(row=row + 1, column=0, pady=(0, 14), sticky="ew")
+        return entry
+
+    def render_login_form(self) -> None:
+        """Tao form dang nhap."""
+        self.clear_auth_form()
+        self.login_email_entry = self.add_auth_entry(0, "Email")
+        self.login_password_entry = self.add_auth_entry(2, "Mat khau", show="*")
+        self.login_button = ctk.CTkButton(
+            self.auth_form_frame,
+            text="Dang nhap",
+            height=38,
+            command=self.handle_login,
+        )
+        self.login_button.grid(row=4, column=0, pady=(2, 0), sticky="ew")
+        self.login_password_entry.bind("<Return>", lambda _event: self.handle_login())
+
+    def render_register_form(self) -> None:
+        """Tao form dang ky va xac thuc OTP."""
+        self.clear_auth_form()
+        self.register_email_entry = self.add_auth_entry(0, "Email")
+        self.register_password_entry = self.add_auth_entry(2, "Mat khau", show="*")
+        self.register_confirm_entry = self.add_auth_entry(4, "Nhap lai mat khau", show="*")
+        self.send_otp_button = ctk.CTkButton(
+            self.auth_form_frame,
+            text="Gui OTP ve email",
+            height=38,
+            command=self.handle_send_registration_otp,
+        )
+        self.send_otp_button.grid(row=6, column=0, pady=(2, 14), sticky="ew")
+
+        self.otp_entry = self.add_auth_entry(7, "Ma OTP")
+        self.verify_otp_button = ctk.CTkButton(
+            self.auth_form_frame,
+            text="Xac thuc va dang nhap",
+            height=38,
+            command=self.handle_verify_registration_otp,
+            state="disabled",
+        )
+        self.verify_otp_button.grid(row=9, column=0, pady=(2, 0), sticky="ew")
+        self.otp_entry.bind("<Return>", lambda _event: self.handle_verify_registration_otp())
+
+    def handle_login(self) -> None:
+        """Dang nhap tai khoan da xac thuc email."""
+        if self.auth_busy:
+            return
+        email = self.login_email_entry.get()
+        password = self.login_password_entry.get()
+        try:
+            connection = get_db_connection()
+            try:
+                user_id = authenticate_user(connection, email, password)
+            finally:
+                connection.close()
+        except AuthError as exc:
+            self.set_auth_status(str(exc), error=True)
+            return
+        except Exception as exc:
+            self.set_auth_status(f"Khong dang nhap duoc: {exc}", error=True)
+            return
+
+        self.current_user_id = user_id
+        self.start_authenticated_app()
+
+    def handle_send_registration_otp(self) -> None:
+        """Tao tai khoan tam va gui OTP xac thuc qua email."""
+        if self.auth_busy:
+            return
+        email = self.register_email_entry.get()
+        password = self.register_password_entry.get()
+        confirm_password = self.register_confirm_entry.get()
+        if password != confirm_password:
+            self.set_auth_status("Mat khau nhap lai khong khop.", error=True)
+            return
+
+        self.set_auth_busy(True)
+        self.set_auth_status("Dang gui OTP, vui long cho...")
+
+        def worker() -> None:
+            try:
+                connection = get_db_connection()
+                try:
+                    register_and_send_otp(connection, email, password)
+                finally:
+                    connection.close()
+            except Exception as exc:
+                self.after(0, lambda: self.on_send_otp_finished(False, str(exc), email))
+                return
+            self.after(0, lambda: self.on_send_otp_finished(True, "", email))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def on_send_otp_finished(self, ok: bool, message: str, email: str) -> None:
+        self.set_auth_busy(False)
+        if not ok:
+            self.set_auth_status(message, error=True)
+            return
+        normalized_email = email.strip().lower()
+        self.pending_register_email = normalized_email
+        self.verify_otp_button.configure(state="normal")
+        self.set_auth_status("Da gui OTP. Hay kiem tra email va nhap ma xac thuc.")
+        messagebox.showinfo(
+            "Gui OTP thanh cong",
+            f"Ma OTP da duoc gui den email:\n{normalized_email}\n\n"
+            "Hay kiem tra Hop thu den hoac Spam.",
+        )
+
+    def handle_verify_registration_otp(self) -> None:
+        """Xac thuc OTP dang ky va vao app."""
+        email = self.pending_register_email or self.register_email_entry.get()
+        otp = self.otp_entry.get().strip()
+        if not otp:
+            self.set_auth_status("Hay nhap ma OTP.", error=True)
+            return
+        try:
+            connection = get_db_connection()
+            try:
+                user_id = verify_registration_otp(connection, email, otp)
+            finally:
+                connection.close()
+        except AuthError as exc:
+            self.set_auth_status(str(exc), error=True)
+            return
+        except Exception as exc:
+            self.set_auth_status(f"Khong xac thuc duoc OTP: {exc}", error=True)
+            return
+
+        self.current_user_id = user_id
+        self.start_authenticated_app()
+
+    def start_authenticated_app(self) -> None:
+        """Khoi tao giao dien posture sau khi nguoi dung dang nhap."""
+        self.config_data = dict(DEFAULT_CONFIG_DATA)
+        self.clear_root_widgets()
+        self.create_widgets()
+        self.initialize_from_database()
+        self.update_status_ui("DANG_KIEM_TRA", None)
+        self.update_counter_labels()
+
+    def logout_current_user(self) -> None:
+        """Dang xuat tai khoan hien tai va quay ve man hinh dang nhap."""
+        if self.is_running:
+            confirmed = messagebox.askyesno(
+                "Dang xuat",
+                "Camera/video dang chay. Ban co muon dung phien hien tai va dang xuat khong?",
+            )
+            if not confirmed:
+                return
+            self.stop_camera()
+
+        self.stop_alarm_sound()
+        self.current_user_id = None
+        self.current_session_id = None
+        self.pending_register_email = None
+        self.probability_window.clear()
+        self.current_status = "DANG_KIEM_TRA"
+        self.current_confidence = None
+        self.current_prob_incorrect = None
+        self.config_data = dict(DEFAULT_CONFIG_DATA)
+        self.show_auth_screen()
 
     def create_widgets(self) -> None:
         """Tao giao dien CustomTkinter light mode."""
@@ -950,6 +1294,8 @@ class PostureApp(ctk.CTk):
             detection_section,
             values=[
                 "ANN",
+                HGB_BALANCED_MODE_NAME,
+                HGB_HIGH_RECALL_MODE_NAME,
                 "Rule-based Baseline",
             ],
             state="readonly",
@@ -1035,6 +1381,17 @@ class PostureApp(ctk.CTk):
             hover_color="#166534",
         )
         self.stats_button.pack(padx=12, pady=(6, 12), fill="x")
+
+        self.logout_button = ctk.CTkButton(
+            action_section,
+            text="Dang xuat",
+            command=self.logout_current_user,
+            height=34,
+            fg_color=THEME["surface_muted"],
+            hover_color=THEME["border"],
+            text_color=THEME["text"],
+        )
+        self.logout_button.pack(padx=12, pady=(0, 12), fill="x")
 
         summary_section = self.create_sidebar_section("Phiên hiện tại")
         self.metrics_frame = ctk.CTkFrame(summary_section, fg_color="transparent")
@@ -1139,12 +1496,21 @@ class PostureApp(ctk.CTk):
         entry.pack(padx=12, pady=(0, 4), fill="x")
         return entry
 
+    def set_entry_value(self, entry: ctk.CTkEntry, value: str) -> None:
+        """Thay gia tri entry ma khong tao widget moi."""
+        entry.delete(0, "end")
+        entry.insert(0, value)
+
     def on_mode_changed(self, selected_mode: str) -> None:
         """Cap nhat panel baseline khi nguoi dung doi mode luc chua chay."""
         if self.is_running:
             return
 
         self.prediction_mode = selected_mode
+        if self.is_hgb_mode():
+            config = self.get_hgb_mode_config()
+            threshold = float(config.get("fallback_threshold", HGB_DEFAULT_THRESHOLD))
+            self.set_entry_value(self.smoothing_threshold_entry, f"{threshold:.2f}")
         if self.is_rule_based_mode():
             self.baseline_info_frame.grid()
             self.baseline_info_label.configure(text="Baseline: chưa chạy")
@@ -1157,7 +1523,8 @@ class PostureApp(ctk.CTk):
     def initialize_from_database(self) -> None:
         """Doc user va cau hinh ban dau tu SQLite."""
         try:
-            self.current_user_id = self.get_default_user_id()
+            if self.current_user_id is None:
+                self.current_user_id = self.get_default_user_id()
             self.config_data = self.load_cai_dat()
             self.apply_config_to_gui()
         except Exception as exc:
@@ -1171,6 +1538,7 @@ class PostureApp(ctk.CTk):
         """Lay maNguoiDung cua Admin, tao neu thieu."""
         connection = get_db_connection()
         try:
+            ensure_auth_schema(connection)
             cursor = connection.cursor()
             cursor.execute(
                 """
@@ -1228,7 +1596,7 @@ class PostureApp(ctk.CTk):
             )
             row = cursor.fetchone()
             if row is None:
-                return dict(self.config_data)
+                return dict(DEFAULT_CONFIG_DATA)
 
             return {
                 "thoiGianCanhBao": row["thoiGianCanhBao"],
@@ -1364,7 +1732,7 @@ class PostureApp(ctk.CTk):
     def save_cai_dat_from_gui(self) -> None:
         """Luu cau hinh tren GUI vao bang CaiDat."""
         if self.current_user_id is None:
-            messagebox.showerror("Lỗi", "Chưa có người dùng Admin trong database.")
+            messagebox.showerror("Lỗi", "Chưa có người dùng trong database.")
             return
 
         try:
@@ -1476,7 +1844,7 @@ class PostureApp(ctk.CTk):
     def start_phien_lam_viec(self, loai_nguon: str, gia_tri_nguon: str) -> int:
         """Tao mot dong phien lam viec moi va tra ve maPhien."""
         if self.current_user_id is None:
-            raise RuntimeError("Chưa có người dùng Admin.")
+            raise RuntimeError("Chưa có người dùng.")
 
         connection = get_db_connection()
         try:
@@ -1510,6 +1878,9 @@ class PostureApp(ctk.CTk):
         """Cap nhat thong tin tong ket khi ket thuc phien lam viec."""
         if self.current_session_id is None:
             return
+        if self.current_user_id is None:
+            self.current_session_id = None
+            return
 
         avg_confidence = (
             self.confidence_sum / self.confidence_count
@@ -1537,7 +1908,7 @@ class PostureApp(ctk.CTk):
                     soLanCanhBao = ?,
                     doTinCayTrungBinh = ?,
                     ghiChu = ?
-                WHERE maPhien = ?
+                WHERE maPhien = ? AND maNguoiDung = ?
                 """,
                 (
                     ended_at,
@@ -1551,6 +1922,7 @@ class PostureApp(ctk.CTk):
                     avg_confidence,
                     f"Tong thoi gian phien: {session_seconds:.1f}s",
                     self.current_session_id,
+                    self.current_user_id,
                 ),
             )
             connection.commit()
@@ -1636,6 +2008,8 @@ class PostureApp(ctk.CTk):
         """Cong don thong ke cua phien hien tai vao bang ThongKeNgay."""
         if self.is_rule_based_mode():
             return
+        if self.current_user_id is None:
+            return
 
         current_day = today_text()
         updated_at = now_iso()
@@ -1643,6 +2017,7 @@ class PostureApp(ctk.CTk):
         connection = None
         try:
             connection = get_db_connection()
+            ensure_user_scoped_statistics_schema(connection)
             cursor = connection.cursor()
             cursor.execute(
                 """
@@ -1653,9 +2028,9 @@ class PostureApp(ctk.CTk):
                     tongThoiGianSai,
                     tongSoCanhBao
                 FROM ThongKeNgay
-                WHERE ngay = ?
+                WHERE maNguoiDung = ? AND ngay = ?
                 """,
-                (current_day,),
+                (self.current_user_id, current_day),
             )
             row = cursor.fetchone()
 
@@ -1673,6 +2048,7 @@ class PostureApp(ctk.CTk):
                 cursor.execute(
                     """
                     INSERT INTO ThongKeNgay (
+                        maNguoiDung,
                         ngay,
                         tongSoPhien,
                         tongThoiGianLamViec,
@@ -1683,9 +2059,10 @@ class PostureApp(ctk.CTk):
                         tiLeSai,
                         ngayCapNhat
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
+                        self.current_user_id,
                         current_day,
                         total_sessions,
                         total_work,
@@ -1720,7 +2097,7 @@ class PostureApp(ctk.CTk):
                         tiLeDung = ?,
                         tiLeSai = ?,
                         ngayCapNhat = ?
-                    WHERE ngay = ?
+                    WHERE maNguoiDung = ? AND ngay = ?
                     """,
                     (
                         total_sessions,
@@ -1731,6 +2108,7 @@ class PostureApp(ctk.CTk):
                         correct_ratio,
                         incorrect_ratio,
                         updated_at,
+                        self.current_user_id,
                         current_day,
                     ),
                 )
@@ -1764,6 +2142,27 @@ class PostureApp(ctk.CTk):
     def is_ann_mode(self) -> bool:
         """Kiem tra app dang chay mode ANN."""
         return self.prediction_mode == "ANN"
+
+    def normalize_prediction_mode(self, mode: str) -> str:
+        """Map ten mode cu sang ten mode moi neu database con luu cau hinh cu."""
+        if mode == LEGACY_HGB_MODE_NAME:
+            return HGB_BALANCED_MODE_NAME
+        return mode
+
+    def get_hgb_mode_config(self) -> dict[str, Any]:
+        """Lay cau hinh model cho che do HGB hien tai."""
+        mode = self.normalize_prediction_mode(self.prediction_mode)
+        if mode not in HGB_MODE_CONFIGS:
+            raise ValueError(f"Che do HGB khong hop le: {self.prediction_mode}")
+        return HGB_MODE_CONFIGS[mode]
+
+    def is_hgb_mode(self) -> bool:
+        """Kiem tra app dang chay mot trong cac che do HistGradientBoosting."""
+        return self.normalize_prediction_mode(self.prediction_mode) in HGB_MODE_CONFIGS
+
+    def is_learned_model_mode(self) -> bool:
+        """Cac model hoc may duoc phep ghi session/log vao SQLite."""
+        return self.is_ann_mode() or self.is_hgb_mode()
 
     def is_rule_based_mode(self) -> bool:
         """Kiem tra app dang chay mode Rule-based Baseline."""
@@ -1806,6 +2205,26 @@ class PostureApp(ctk.CTk):
             if self.scaler is None:
                 print(f"Dang load scaler: {scaler_path}")
                 self.scaler = joblib.load(scaler_path)
+        elif self.is_hgb_mode():
+            config = self.get_hgb_mode_config()
+            model_id = str(config["model_id"])
+            feature_set = str(config["feature_set"])
+            model_path = resource_path(Path("models") / "registry" / model_id / "model.pkl")
+
+            if not model_path.exists():
+                raise FileNotFoundError(f"Khong tim thay model HGB: {model_path}")
+
+            if self.hgb_model is None or self.hgb_model_id != model_id:
+                print(f"Dang load HGB mode: {self.normalize_prediction_mode(self.prediction_mode)}")
+                print(f"model_id={model_id}")
+                print(f"feature_set={feature_set}")
+                print(f"model_path={model_path}")
+                self.hgb_model = joblib.load(model_path)
+                self.hgb_model_id = model_id
+                self.hgb_feature_set = feature_set
+
+            self.hgb_threshold = self.load_hgb_threshold(model_id, float(config["fallback_threshold"]))
+            print(f"threshold={self.hgb_threshold:.4f}")
         else:
             print("Baseline mode: chi load MediaPipe Pose, khong load ANN/scaler.")
 
@@ -1818,6 +2237,19 @@ class PostureApp(ctk.CTk):
                 min_detection_confidence=0.5,
                 min_tracking_confidence=0.5,
             )
+
+    def load_hgb_threshold(self, model_id: str, fallback_threshold: float) -> float:
+        """Doc nguong calibrated cua HGB tu registry theo model id."""
+        threshold_path = resource_path(Path("models") / "registry" / model_id / "threshold.json")
+        if not threshold_path.exists():
+            return fallback_threshold
+
+        try:
+            payload = json.loads(threshold_path.read_text(encoding="utf-8"))
+            return float(payload.get("default", fallback_threshold))
+        except Exception as exc:
+            print(f"WARNING: Khong doc duoc threshold HGB, dung fallback {fallback_threshold}: {exc}")
+            return fallback_threshold
 
     def reset_session_counters(self) -> None:
         """Reset cac bien dem cho phien camera moi."""
@@ -1872,6 +2304,39 @@ class PostureApp(ctk.CTk):
 
             if source_type == "webcam":
                 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        elif source_type == "video_file" and hasattr(cv2, "CAP_PROP_ORIENTATION_AUTO"):
+            cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 0)
+
+    def detect_video_rotation(self, cap: cv2.VideoCapture, source_type: str) -> int:
+        """Lay goc xoay metadata cua video file de hien thi dung chieu."""
+        if source_type != "video_file" or not hasattr(cv2, "CAP_PROP_ORIENTATION_META"):
+            return 0
+
+        try:
+            raw_rotation = float(cap.get(cv2.CAP_PROP_ORIENTATION_META))
+        except Exception:
+            return 0
+
+        if not math.isfinite(raw_rotation):
+            return 0
+
+        normalized_rotation = int(round(raw_rotation / 90.0) * 90) % 360
+        if normalized_rotation not in {90, 180, 270}:
+            return 0
+        return normalized_rotation
+
+    def apply_video_orientation(self, frame: np.ndarray) -> np.ndarray:
+        """Sua huong video theo metadata, khong ap dung cho webcam/live camera."""
+        if self.current_source_type != "video_file":
+            return frame
+
+        if self.video_rotation_degrees == 90:
+            return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        if self.video_rotation_degrees == 180:
+            return cv2.rotate(frame, cv2.ROTATE_180)
+        if self.video_rotation_degrees == 270:
+            return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return frame
 
     def start_capture_thread(self) -> None:
         """Doc lien tuc camera live va chi giu frame moi nhat."""
@@ -1944,11 +2409,11 @@ class PostureApp(ctk.CTk):
             return
 
         try:
-            self.prediction_mode = self.mode_combobox.get()
+            self.prediction_mode = self.normalize_prediction_mode(self.mode_combobox.get())
             self.config_data = self.read_gui_settings()
             self.apply_runtime_settings()
 
-            if self.is_ann_mode():
+            if self.is_learned_model_mode():
                 self.save_cai_dat_silent()
                 self.config_data = self.load_cai_dat()
                 self.apply_runtime_settings()
@@ -1968,10 +2433,13 @@ class PostureApp(ctk.CTk):
                 raise RuntimeError(f"Không mở được nguồn camera/video: {source_text}")
 
             self.configure_capture(cap, source_type)
+            self.video_rotation_degrees = self.detect_video_rotation(cap, source_type)
+            if self.video_rotation_degrees:
+                print(f"Video orientation metadata: rotate {self.video_rotation_degrees} degrees.")
 
             self.cap = cap
             self.reset_session_counters()
-            if self.is_ann_mode():
+            if self.is_learned_model_mode():
                 self.current_session_id = self.start_phien_lam_viec(
                     source_type,
                     source_text,
@@ -2008,7 +2476,7 @@ class PostureApp(ctk.CTk):
     def save_cai_dat_silent(self) -> None:
         """Luu cau hinh truoc khi bat dau, khong hien messagebox thanh cong."""
         if self.current_user_id is None:
-            raise RuntimeError("Chưa có người dùng Admin trong database.")
+            raise RuntimeError("Chưa có người dùng trong database.")
 
         settings = dict(self.config_data)
         connection = get_db_connection()
@@ -2216,6 +2684,7 @@ class PostureApp(ctk.CTk):
 
     def prepare_frame(self, frame: np.ndarray) -> np.ndarray:
         """Chuan hoa frame ve kich thuoc hien thi on dinh."""
+        frame = self.apply_video_orientation(frame)
         frame = cv2.resize(frame, (VIDEO_WIDTH, VIDEO_HEIGHT), interpolation=cv2.INTER_AREA)
         if self.current_source_type == "webcam":
             frame = cv2.flip(frame, 1)
@@ -2236,6 +2705,8 @@ class PostureApp(ctk.CTk):
         """Dispatcher du doan theo mode nguoi dung da chon."""
         if self.is_rule_based_mode():
             return self.predict_frame_rule_based(frame)
+        if self.is_hgb_mode():
+            return self.predict_frame_hgb(frame)
         return self.predict_frame_ann(frame)
 
     def predict_frame_ann(
@@ -2296,6 +2767,154 @@ class PostureApp(ctk.CTk):
 
         # Label 1 = sai tu the, nen sigmoid output la P(sai).
         if prob_incorrect >= self.smoothing_threshold:
+            status = "SAI_TU_THE"
+            predicted_label = 1
+            confidence = prob_incorrect
+        else:
+            status = "DUNG_TU_THE"
+            predicted_label = 0
+            confidence = 1.0 - prob_incorrect
+
+        self.current_prob_incorrect = prob_incorrect
+        self.current_confidence = confidence
+        return status, predicted_label, prob_incorrect, confidence, results, None, []
+
+    def build_normalized_landmark_vector(self, landmarks: Any) -> list[float]:
+        """Tao feature `normalized_99` dung schema model registry."""
+        points = [
+            (
+                float(landmark.x),
+                float(landmark.y),
+                float(landmark.z),
+            )
+            for landmark in landmarks[:NUM_POSE_LANDMARKS]
+        ]
+        if len(points) != NUM_POSE_LANDMARKS:
+            return []
+
+        left_shoulder = points[11]
+        right_shoulder = points[12]
+        left_hip = points[23]
+        right_hip = points[24]
+        shoulder_mid_x = (left_shoulder[0] + right_shoulder[0]) / 2.0
+        shoulder_mid_y = (left_shoulder[1] + right_shoulder[1]) / 2.0
+        hip_mid_x = (left_hip[0] + right_hip[0]) / 2.0
+        hip_mid_y = (left_hip[1] + right_hip[1]) / 2.0
+        shoulder_width = math.hypot(
+            left_shoulder[0] - right_shoulder[0],
+            left_shoulder[1] - right_shoulder[1],
+        )
+        torso_length = math.hypot(
+            shoulder_mid_x - hip_mid_x,
+            shoulder_mid_y - hip_mid_y,
+        )
+        scale = max(shoulder_width, torso_length, 1e-6)
+
+        feature_vector: list[float] = []
+        for x, y, z in points:
+            feature_vector.extend(
+                [
+                    (x - shoulder_mid_x) / scale,
+                    (y - shoulder_mid_y) / scale,
+                    z / scale,
+                ]
+            )
+        return feature_vector
+
+    def infer_current_view_angle(self) -> str:
+        """Suy ra goc quay tu ten file video; webcam/IP camera tam dung unknown."""
+        if self.current_source_type != "video_file":
+            return "unknown"
+
+        source_text = str(self.config_data.get("nguonCamera", "")).lower()
+        source_name = Path(source_text).name.lower()
+        if "side_90" in source_name:
+            return "side_90"
+        if "side_30" in source_name:
+            return "side_30"
+        if "front" in source_name:
+            return "front"
+        return "unknown"
+
+    def build_landmark_frame_dataframe(self, landmarks: Any) -> pd.DataFrame:
+        """Tao DataFrame 1 dong tu MediaPipe landmarks cho feature_schema."""
+        row: dict[str, Any] = {}
+        for index, landmark in enumerate(landmarks[:NUM_POSE_LANDMARKS]):
+            row[f"landmark_{index}_x"] = float(landmark.x)
+            row[f"landmark_{index}_y"] = float(landmark.y)
+            row[f"landmark_{index}_z"] = float(landmark.z)
+
+        row.update(
+            {
+                "source_video": str(self.config_data.get("nguonCamera", "")),
+                "frame_index": int(self.frame_index),
+                "timestamp_sec": float(
+                    self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                    if self.cap is not None and self.current_source_type == "video_file"
+                    else max(0.0, time.time() - self.session_start_time.timestamp())
+                    if self.session_start_time is not None
+                    else 0.0
+                ),
+                "sample_fps": 0.0,
+                "video_fps": float(self.cap.get(cv2.CAP_PROP_FPS)) if self.cap is not None else 0.0,
+                "participant_id": "unknown",
+                "view_angle": self.infer_current_view_angle(),
+                "camera_type": self.current_source_type,
+            }
+        )
+        return pd.DataFrame([row])
+
+    def predict_frame_hgb(
+        self,
+        frame: np.ndarray,
+    ) -> tuple[
+        str,
+        int | None,
+        float | None,
+        float | None,
+        Any,
+        dict[str, Any] | None,
+        list[str],
+    ]:
+        """Chay MediaPipe Pose va HistGradientBoosting theo feature set cua mode."""
+        if self.pose is None or self.hgb_model is None or self.hgb_feature_set is None:
+            return "KHONG_PHAT_HIEN_NGUOI", None, None, None, None, None, []
+
+        inference_frame = cv2.resize(
+            frame,
+            (INFERENCE_WIDTH, INFERENCE_HEIGHT),
+            interpolation=cv2.INTER_AREA,
+        )
+        rgb_frame = cv2.cvtColor(inference_frame, cv2.COLOR_BGR2RGB)
+        rgb_frame.flags.writeable = False
+        results = self.pose.process(rgb_frame)
+        rgb_frame.flags.writeable = True
+
+        if not results.pose_landmarks:
+            self.current_prob_incorrect = None
+            self.current_confidence = None
+            self.probability_window.clear()
+            return "KHONG_PHAT_HIEN_NGUOI", None, None, None, results, None, []
+
+        landmarks = results.pose_landmarks.landmark
+        if len(landmarks) < NUM_POSE_LANDMARKS:
+            self.current_prob_incorrect = None
+            self.current_confidence = None
+            self.probability_window.clear()
+            return "KHONG_PHAT_HIEN_NGUOI", None, None, None, results, None, []
+
+        frame_df = self.build_landmark_frame_dataframe(landmarks)
+        model_input, _ = build_feature_matrix(frame_df, self.hgb_feature_set)
+        if hasattr(self.hgb_model, "predict_proba"):
+            raw_prob_incorrect = float(self.hgb_model.predict_proba(model_input)[0, 1])
+        else:
+            raw_prob_incorrect = float(self.hgb_model.predict(model_input)[0])
+
+        self.probability_window.append(raw_prob_incorrect)
+        prob_incorrect = float(np.mean(self.probability_window))
+        decision_threshold = float(self.hgb_threshold)
+
+        if prob_incorrect >= decision_threshold:
             status = "SAI_TU_THE"
             predicted_label = 1
             confidence = prob_incorrect
@@ -2483,7 +3102,7 @@ class PostureApp(ctk.CTk):
                 xac_suat_sai=prob_incorrect,
                 do_tin_cay=confidence,
                 da_canh_bao=1,
-                loai_canh_bao="ann_incorrect",
+                loai_canh_bao="model_incorrect",
                 chi_so_frame=self.frame_index,
                 fps=self.fps,
                 ghi_chu=(
@@ -2841,8 +3460,15 @@ class PostureApp(ctk.CTk):
 
     def show_statistics(self) -> None:
         """Mo cua so dashboard thong ke light mode."""
+        if self.current_user_id is None:
+            messagebox.showerror("Lỗi", "Bạn cần đăng nhập để xem thống kê.")
+            return
         try:
-            dashboard_data = get_dashboard_data(DATABASE_PATH, today_text())
+            dashboard_data = get_dashboard_data(
+                DATABASE_PATH,
+                today_text(),
+                user_id=self.current_user_id,
+            )
         except Exception as exc:
             messagebox.showerror("Lỗi database", f"Không đọc được thống kê: {exc}")
             return
@@ -3053,8 +3679,16 @@ class PostureApp(ctk.CTk):
         stats_window: Any,
         date_text: str,
     ) -> None:
+        if self.current_user_id is None:
+            messagebox.showerror("Lỗi", "Bạn cần đăng nhập để xem thống kê.")
+            stats_window.destroy()
+            return
         try:
-            dashboard_data = get_dashboard_data(DATABASE_PATH, date_text)
+            dashboard_data = get_dashboard_data(
+                DATABASE_PATH,
+                date_text,
+                user_id=self.current_user_id,
+            )
         except Exception as exc:
             messagebox.showerror("Lỗi database", f"Không đọc được thống kê: {exc}")
             return
@@ -3510,6 +4144,9 @@ class PostureApp(ctk.CTk):
 
     def export_statistics_from_ui(self) -> None:
         """Chay script export CSV thong ke tu dashboard."""
+        if self.current_user_id is None:
+            messagebox.showerror("Xuất CSV", "Bạn cần đăng nhập để xuất thống kê.")
+            return
         if is_frozen():
             messagebox.showinfo(
                 "Xuất CSV",
@@ -3521,7 +4158,14 @@ class PostureApp(ctk.CTk):
         script_path = BASE_DIR / "src" / "10_export_statistics.py"
         try:
             subprocess.run(
-                [sys.executable, str(script_path)],
+                [
+                    sys.executable,
+                    str(script_path),
+                    "--database",
+                    str(DATABASE_PATH),
+                    "--user-id",
+                    str(self.current_user_id),
+                ],
                 cwd=BASE_DIR,
                 check=True,
                 capture_output=True,
@@ -3560,10 +4204,10 @@ class PostureApp(ctk.CTk):
                 self.baseline_info_frame.grid_remove()
             return
 
-        was_ann_mode = self.is_ann_mode()
+        was_learned_model_mode = self.is_learned_model_mode()
         self.is_running = False
         self.release_video_resources()
-        if was_ann_mode and self.current_session_id is not None:
+        if was_learned_model_mode and self.current_session_id is not None:
             self.end_phien_lam_viec()
             print("Da dung camera va cap nhat phien lam viec.")
         else:

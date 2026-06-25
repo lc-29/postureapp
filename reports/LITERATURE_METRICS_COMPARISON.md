@@ -1,6 +1,6 @@
 # Literature Metrics Comparison
 
-Updated: 2026-05-26
+Updated: 2026-05-28
 
 Purpose: collect real reported numbers from related sitting-posture and ergonomic-monitoring papers so the project can compare its current method without inventing citations or overstating results.
 
@@ -22,28 +22,28 @@ Source files:
 
 | Item | Value |
 |---|---:|
-| External dataset rows | 1697 |
-| External labels | 768 correct, 929 incorrect |
+| External dataset rows | 1658 |
+| External labels | 768 correct, 890 incorrect |
 | External raw videos | 5 correct, 5 incorrect |
 | Feature schema | 33 MediaPipe landmarks x 3 coordinates = 99 features |
 | ANN threshold | 0.50 |
-| ANN accuracy | 79.316% |
-| ANN precision, incorrect class | 94.599% |
-| ANN recall, incorrect class | 65.985% |
-| ANN F1, incorrect class | 77.743% |
-| ANN Wilson 95% accuracy CI | [77.324%, 81.176%] |
+| ANN accuracy | 90.169% |
+| ANN precision, incorrect class | 95.609% |
+| ANN recall, incorrect class | 85.618% |
+| ANN F1, incorrect class | 90.338% |
+| ANN Wilson 95% accuracy CI | [88.642%, 91.511%] |
 | Best threshold by F1 | 0.10 |
-| Best-threshold accuracy | 80.436% |
-| Best-threshold F1 | 79.903% |
-| Rule-based accuracy | 56.629% |
-| Rule-based F1 | 64.479% |
-| ANN vs rule-based McNemar p-value | 2.19314e-60 |
+| Best-threshold accuracy | 91.375% |
+| Best-threshold F1 | 91.889% |
+| Rule-based accuracy | 67.491% |
+| Rule-based F1 | 75.399% |
+| ANN vs rule-based McNemar p-value | 1.15022e-56 |
 
 ## Primary Comparison Table
 
 | ID | Study | Modality / input | Task and dataset note | Method | Reported metric(s) | Source verification | Comparison note |
 |---|---|---|---|---|---|---|---|
-| OURS | Posture Detection App current external result | Webcam/video, MediaPipe Pose landmarks | Binary correct/incorrect, 1697 external frames from 10 external videos | ANN classifier; rule-based ergonomic baseline | ANN: accuracy 79.316%, precision 94.599%, recall 65.985%, F1 77.743%; best threshold F1 79.903%; rule-based accuracy 56.629% | Local project artifacts | Same project scope, but still frame-level. Needs video-wise/person-wise validation before strong claims. |
+| OURS | Posture Detection App current corrected external result | Webcam/video, MediaPipe Pose landmarks | Binary correct/incorrect, 1658 external frames from 10 external videos | ANN classifier; rule-based ergonomic baseline; internal SVM/RF benchmark | ANN: accuracy 90.169%, precision 95.609%, recall 85.618%, F1 90.338%; best threshold F1 91.889%; rule-based accuracy 67.491% | Local project artifacts | Same project scope, but still mostly frame-level and external set has one participant. Needs stronger person-wise/external validation before strong claims. |
 | L01 | Estrada, Vea, and Devaraj, Applied Sciences 2023 | Smartphone cameras, MediaPipe keypoints plus computed distances/angles | Proper vs improper sitting posture in work-from-home setting; 60 participants; 7200 annotated 10-second instances from 720,000 processed frames | Small-scale CNN / machine-learning pipeline with human pose estimation features | Overall left/right camera accuracies 85.18% and 92.07%; kappas 0.691 and 0.838. Category experiments reported up to 98.003% for left-camera elbow and 99.5425% for right-camera wrist. | Indexed official MDPI article page and SSRN abstract | Closest camera/MediaPipe comparison. Different camera placement, annotations, and per-body-part models, so compare as context only. |
 | L02 | Kulikajevas, Maskeliunas, and Damasevicius, PeerJ Computer Science 2021 | RGB-D camera sequences | 11 subjects, 66 video sequences, 133 min recording, six sitting posture labels plus hierarchical grouping | Deep recurrent hierarchical network based on MobileNetV2 | Headline sitting-posture recognition accuracy 91.47% at 10 fps; reported sensitivity 0.9185, specificity 0.9595, F-score 0.9132, kappa 0.8081 for base posture grouping. The fine six-label result was lower at 68.33% accuracy. | PubMed/PMC indexed abstract and full-text snippets | Strong related computer-vision baseline. Uses RGB-D and hierarchy, not plain webcam landmarks. Useful for discussing temporal sequence/context. |
 | L03 | Tsai, Chu, and Lee, Sensors 2023 | Pressure sensors embedded in chair cushion | 10 sitting postures; model setup with 6 subjects and validation with 20 additional participants / 12,000 samples | SVM, KNN, decision tree, random forest, logistic regression | SVM 99.18%, KNN 98.86%, decision tree 97.83%, random forest 98.41%, logistic regression 98.19%; 13-sensor placement kept all algorithms above 97% | PMC/MDPI indexed full-text snippets | High accuracy, but sensor-based and controlled. Useful to show pressure sensors can outperform camera-only methods at the cost of hardware. |
@@ -55,11 +55,11 @@ Source files:
 
 ## Interpretation for the Paper
 
-Current external performance is below several lab-controlled pressure-sensor and MediaPipe studies. This is acceptable for an honest research report if the contribution is framed around a low-cost end-to-end webcam pipeline, external-set evaluation, interpretable rule-based indicators, statistical comparison against a baseline, and session-level temporal risk monitoring.
+Current corrected external performance is competitive with several camera-based reports, but it must not be treated as a leaderboard because datasets and protocols differ. This is acceptable for an honest research report if the contribution is framed around a low-cost end-to-end webcam pipeline, external-set evaluation, interpretable rule-based indicators, statistical comparison against a baseline, and session-level temporal risk monitoring.
 
 Do not claim state-of-the-art. A defensible claim is:
 
-> The proposed system provides an end-to-end webcam-based posture monitoring pipeline with frame-level ANN classification, rule-based ergonomic indicators, and temporal risk summarization. On the current external frame set it achieved 79.32% accuracy and 77.74% F1 for the incorrect class, outperforming the local rule-based baseline on paired frames, while remaining below several controlled sensor-based and recent MediaPipe-based studies.
+> The proposed system provides an end-to-end webcam-based posture monitoring pipeline with frame-level ANN classification, rule-based ergonomic indicators, and temporal risk summarization. On the corrected external frame set it achieved 90.17% accuracy and 90.34% F1 for the incorrect class, outperforming the local rule-based baseline on paired frames. These results should be interpreted as project-specific validation rather than state-of-the-art comparison because related studies use different sensors, labels, participants, and split protocols.
 
 ## Recommended Next Experiments
 
@@ -68,4 +68,3 @@ Do not claim state-of-the-art. A defensible claim is:
 3. Compare against KNN/SVM/Random Forest/XGBoost on the same 99 MediaPipe features.
 4. Run runtime benchmarks: mean FPS, p95 latency, CPU/RAM.
 5. Re-check L01 and L07 full PDFs before final Springer submission because browser extraction was limited by publisher challenge pages.
-
