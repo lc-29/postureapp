@@ -1,0 +1,22 @@
+{
+  "threshold": 0.76,
+  "accuracy": 0.8931079894644425,
+  "precision_incorrect": 0.9348191757779647,
+  "recall_incorrect": 0.8700587084148728,
+  "f1_incorrect": 0.9012771133184675,
+  "macro_f1": 0.8923710285424594,
+  "mcc": 0.7874750423271265,
+  "roc_auc": 0.9491293492197149,
+  "pr_auc": 0.9620879770486879,
+  "true_negative": 1846,
+  "false_positive": 155,
+  "false_negative": 332,
+  "true_positive": 2223,
+  "model_id": "hist_gradient_boosting_none__ergonomic_v2_with_view",
+  "algorithm": "hist_gradient_boosting",
+  "class_weight": "none",
+  "feature_set": "ergonomic_v2_with_view",
+  "fp_reduction": 452,
+  "f1_gain": 0.04880024886555512,
+  "mcc_gain": 0.14699522962129496
+}

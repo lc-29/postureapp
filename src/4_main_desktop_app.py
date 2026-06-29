@@ -91,6 +91,117 @@ except ImportError:
     )
 
 try:
+    from app.config.constants import (
+        ALARM_PATH,
+        BASE_DIR,
+        CAPTURE_FAIL_LIMIT,
+        CAPTURE_READ_RETRY_DELAY,
+        CHIN_REST_ELBOW_MAX_ANGLE,
+        CHIN_REST_ELBOW_MIN_ANGLE,
+        DATABASE_PATH,
+        DATA_QUALITY_TEXT,
+        DEFAULT_CONFIG_DATA,
+        FEATURES_PER_LANDMARK,
+        HAND_POINT_MIN_VISIBILITY,
+        HAND_TO_MOUTH_ABS_THRESHOLD,
+        HAND_TO_MOUTH_RATIO_THRESHOLD,
+        HEAD_OFFSET_X_THRESHOLD,
+        HGB_BALANCED_MODE_NAME,
+        HGB_DEFAULT_THRESHOLD,
+        HGB_HIGH_RECALL_MODE_NAME,
+        HGB_MODE_CONFIGS,
+        INFERENCE_HEIGHT,
+        INFERENCE_WIDTH,
+        LEGACY_HGB_MODE_NAME,
+        LIVE_CAPTURE_HEIGHT,
+        LIVE_CAPTURE_WIDTH,
+        MIN_VISIBILITY,
+        MODEL_PATH,
+        NOSE_TO_SHOULDER_Y_THRESHOLD,
+        NUM_FEATURES,
+        NUM_POSE_LANDMARKS,
+        RISK_LEVEL_TEXT,
+        SCALER_PATH,
+        SHOULDER_TILT_ANGLE_THRESHOLD,
+        SHOULDER_Y_DIFF_THRESHOLD,
+        STATUS_COLORS,
+        STATUS_TEXT,
+        TORSO_LEAN_ANGLE_THRESHOLD,
+        UPDATE_DELAY_MS,
+        USE_ELBOW_ANGLE_FOR_CHIN_REST,
+        VIDEO_HEIGHT,
+        VIDEO_WIDTH,
+    )
+    from app.config.theme import APP_FONT_FAMILY, THEME, THEMES, app_font
+    from app.repositories.database import get_db_connection
+    from app.services.model_service import (
+        build_landmark_frame_dataframe as build_hgb_landmark_frame_dataframe,
+        load_hgb_model,
+        load_hgb_threshold as load_hgb_threshold_from_registry,
+        predict_hgb_probability,
+    )
+    from app.utils.video_source import (
+        infer_view_angle_from_source,
+        project_path_from_text,
+        resolve_source,
+    )
+except ImportError:
+    from src.app.config.constants import (
+        ALARM_PATH,
+        BASE_DIR,
+        CAPTURE_FAIL_LIMIT,
+        CAPTURE_READ_RETRY_DELAY,
+        CHIN_REST_ELBOW_MAX_ANGLE,
+        CHIN_REST_ELBOW_MIN_ANGLE,
+        DATABASE_PATH,
+        DATA_QUALITY_TEXT,
+        DEFAULT_CONFIG_DATA,
+        FEATURES_PER_LANDMARK,
+        HAND_POINT_MIN_VISIBILITY,
+        HAND_TO_MOUTH_ABS_THRESHOLD,
+        HAND_TO_MOUTH_RATIO_THRESHOLD,
+        HEAD_OFFSET_X_THRESHOLD,
+        HGB_BALANCED_MODE_NAME,
+        HGB_DEFAULT_THRESHOLD,
+        HGB_HIGH_RECALL_MODE_NAME,
+        HGB_MODE_CONFIGS,
+        INFERENCE_HEIGHT,
+        INFERENCE_WIDTH,
+        LEGACY_HGB_MODE_NAME,
+        LIVE_CAPTURE_HEIGHT,
+        LIVE_CAPTURE_WIDTH,
+        MIN_VISIBILITY,
+        MODEL_PATH,
+        NOSE_TO_SHOULDER_Y_THRESHOLD,
+        NUM_FEATURES,
+        NUM_POSE_LANDMARKS,
+        RISK_LEVEL_TEXT,
+        SCALER_PATH,
+        SHOULDER_TILT_ANGLE_THRESHOLD,
+        SHOULDER_Y_DIFF_THRESHOLD,
+        STATUS_COLORS,
+        STATUS_TEXT,
+        TORSO_LEAN_ANGLE_THRESHOLD,
+        UPDATE_DELAY_MS,
+        USE_ELBOW_ANGLE_FOR_CHIN_REST,
+        VIDEO_HEIGHT,
+        VIDEO_WIDTH,
+    )
+    from src.app.config.theme import APP_FONT_FAMILY, THEME, THEMES, app_font
+    from src.app.repositories.database import get_db_connection
+    from src.app.services.model_service import (
+        build_landmark_frame_dataframe as build_hgb_landmark_frame_dataframe,
+        load_hgb_model,
+        load_hgb_threshold as load_hgb_threshold_from_registry,
+        predict_hgb_probability,
+    )
+    from src.app.utils.video_source import (
+        infer_view_angle_from_source,
+        project_path_from_text,
+        resolve_source,
+    )
+
+try:
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 except ImportError:
@@ -98,154 +209,11 @@ except ImportError:
     FigureCanvasTkAgg = None
 
 
-BASE_DIR = app_base_dir()
-DATABASE_PATH = writable_database_path()
-MODEL_PATH = resource_path(Path("models") / "ann_best.keras")
-SCALER_PATH = resource_path(Path("models") / "scaler.pkl")
-HGB_BALANCED_MODE_NAME = "HistGradientBoosting (balanced best)"
-HGB_HIGH_RECALL_MODE_NAME = "HistGradientBoosting (high recall demo)"
-LEGACY_HGB_MODE_NAME = "HistGradientBoosting (best)"
-HGB_MODE_CONFIGS: dict[str, dict[str, Any]] = {
-    HGB_BALANCED_MODE_NAME: {
-        "model_id": "hist_gradient_boosting__ergonomic_v2_with_view",
-        "feature_set": "ergonomic_v2_with_view",
-        "fallback_threshold": 0.76,
-        "purpose": "Ket qua khoa hoc can bang FP/FN",
-    },
-    HGB_HIGH_RECALL_MODE_NAME: {
-        "model_id": "hist_gradient_boosting__normalized_99",
-        "feature_set": "normalized_99",
-        "fallback_threshold": 0.50,
-        "purpose": "Demo realtime uu tien it bo sot tu the sai",
-    },
-}
-HGB_DEFAULT_THRESHOLD = 0.50
-ALARM_PATH = resource_path(Path("assets") / "sounds" / "alarm.wav")
-DEFAULT_CONFIG_DATA: dict[str, Any] = {
-    "nguonCamera": "0",
-    "thoiGianCanhBao": 5,
-    "thoiGianChoCanhBao": 15,
-    "batAmThanh": 1,
-    "duongDanAmThanh": "assets/sounds/alarm.wav",
-    "duongDanModel": "models/ann_best.keras",
-    "duongDanScaler": "models/scaler.pkl",
-    "cheDoGiaoDien": "light",
-    "smoothingWindowFrames": 5,
-    "smoothingThreshold": 0.5,
-}
-
-NUM_POSE_LANDMARKS = 33
-FEATURES_PER_LANDMARK = 3
-NUM_FEATURES = NUM_POSE_LANDMARKS * FEATURES_PER_LANDMARK
-
-# =========================
-# Nguong rule-based baseline
-# =========================
-# Cac nguong duoc copy co chon loc tu src/1_rule_based_baseline.py de baseline
-# trong app chinh dung dung cong thuc so sanh, khong import file bat dau bang so.
-MIN_VISIBILITY = 0.5
-SHOULDER_Y_DIFF_THRESHOLD = 0.06
-SHOULDER_TILT_ANGLE_THRESHOLD = 10.0
-TORSO_LEAN_ANGLE_THRESHOLD = 12.0
-HEAD_OFFSET_X_THRESHOLD = 0.10
-NOSE_TO_SHOULDER_Y_THRESHOLD = -0.03
-HAND_TO_MOUTH_RATIO_THRESHOLD = 0.45
-HAND_TO_MOUTH_ABS_THRESHOLD = 0.13
-HAND_POINT_MIN_VISIBILITY = 0.35
-USE_ELBOW_ANGLE_FOR_CHIN_REST = False
-CHIN_REST_ELBOW_MIN_ANGLE = 35.0
-CHIN_REST_ELBOW_MAX_ANGLE = 145.0
-
-VIDEO_WIDTH = 760
-VIDEO_HEIGHT = 570
-INFERENCE_WIDTH = 480
-INFERENCE_HEIGHT = 360
-LIVE_CAPTURE_WIDTH = 640
-LIVE_CAPTURE_HEIGHT = 480
-UPDATE_DELAY_MS = 10
-CAPTURE_READ_RETRY_DELAY = 0.005
-CAPTURE_FAIL_LIMIT = 90
 FONT = cv2.FONT_HERSHEY_SIMPLEX
-APP_FONT_FAMILY = "Segoe UI"
 
 if plt is not None:
     plt.rcParams["font.family"] = APP_FONT_FAMILY
     plt.rcParams["axes.unicode_minus"] = False
-
-STATUS_TEXT = {
-    "DUNG_TU_THE": "TƯ THẾ ĐÚNG",
-    "SAI_TU_THE": "SAI TƯ THẾ",
-    "KHONG_PHAT_HIEN_NGUOI": "KHÔNG PHÁT HIỆN NGƯỜI",
-    "DANG_KIEM_TRA": "ĐANG KIỂM TRA...",
-}
-
-RISK_LEVEL_TEXT = {
-    "LOW": "Thấp",
-    "MEDIUM": "Trung bình",
-    "HIGH": "Cao",
-    "CRITICAL": "Rất cao",
-}
-
-DATA_QUALITY_TEXT = {
-    "ok": "Ổn",
-    "zero_duration": "Thiếu thời lượng",
-    "no_frame_summary": "Thiếu thống kê frame",
-    "no_posture_logs": "Thiếu nhật ký tư thế",
-    "missing_end_time": "Thiếu thời điểm kết thúc",
-}
-
-STATUS_COLORS = {
-    "DUNG_TU_THE": "#15803d",
-    "SAI_TU_THE": "#dc2626",
-    "KHONG_PHAT_HIEN_NGUOI": "#64748b",
-    "DANG_KIEM_TRA": "#b45309",
-}
-
-THEMES = {
-    "light": {
-        "app_bg": "#f6f8fb",
-        "surface": "#ffffff",
-        "surface_muted": "#eef2f7",
-        "surface_subtle": "#f8fafc",
-        "border": "#d7dde8",
-        "border_soft": "#e5eaf2",
-        "text": "#162033",
-        "muted": "#5b677a",
-        "muted_light": "#7b8798",
-        "success": "#15803d",
-        "success_bg": "#dcfce7",
-        "danger": "#dc2626",
-        "danger_bg": "#fee2e2",
-        "warning": "#b45309",
-        "warning_bg": "#fef3c7",
-        "info": "#2563eb",
-        "info_bg": "#dbeafe",
-        "neutral": "#64748b",
-        "neutral_bg": "#e2e8f0",
-    },
-    "dark": {
-        "app_bg": "#0f172a",
-        "surface": "#111827",
-        "surface_muted": "#1f2937",
-        "surface_subtle": "#172033",
-        "border": "#334155",
-        "border_soft": "#243244",
-        "text": "#f8fafc",
-        "muted": "#cbd5e1",
-        "muted_light": "#94a3b8",
-        "success": "#22c55e",
-        "success_bg": "#052e16",
-        "danger": "#f87171",
-        "danger_bg": "#450a0a",
-        "warning": "#fbbf24",
-        "warning_bg": "#422006",
-        "info": "#60a5fa",
-        "info_bg": "#172554",
-        "neutral": "#94a3b8",
-        "neutral_bg": "#1e293b",
-    },
-}
-THEME = dict(THEMES["light"])
 
 
 mp_pose = mp.solutions.pose
@@ -286,13 +254,6 @@ def format_duration(seconds: float | int | None) -> str:
     return f"{remaining_seconds}s"
 
 
-def app_font(size: int, weight: str | None = None) -> ctk.CTkFont:
-    """Create a CTk font that renders Vietnamese well on Windows."""
-    kwargs: dict[str, Any] = {"family": APP_FONT_FAMILY, "size": size}
-    if weight is not None:
-        kwargs["weight"] = weight
-    return ctk.CTkFont(**kwargs)
-
 
 def translate_risk_level(level: str | None) -> str:
     return RISK_LEVEL_TEXT.get(str(level or "LOW"), str(level or "LOW"))
@@ -315,64 +276,6 @@ def load_overlay_font(scale: float, bold: bool = False) -> ImageFont.ImageFont:
         if font_path.exists():
             return ImageFont.truetype(str(font_path), font_size)
     return ImageFont.load_default()
-
-
-def get_db_connection() -> sqlite3.Connection:
-    """
-    Tao ket noi SQLite va bat foreign key.
-
-    Neu database chua ton tai, app tu tao database runtime lan dau.
-    """
-    db_path = ensure_runtime_database()
-
-    connection = sqlite3.connect(db_path)
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
-
-
-def project_path_from_text(path_text: str | None, fallback: Path) -> Path:
-    """
-    Chuyen duong dan trong database thanh Path tuyet doi theo project.
-    """
-    if not path_text:
-        return fallback
-
-    path = Path(path_text)
-    if path.is_absolute():
-        return path
-
-    return resource_path(path)
-
-
-def resolve_source(source_text: str) -> tuple[int | str, str]:
-    """
-    Phan loai nguon camera/video de mo bang OpenCV.
-
-    - Chuoi so: webcam.
-    - http/https/rtsp: ip_camera.
-    - File ton tai: video_file.
-    - Con lai: xem nhu duong dan video_file de OpenCV tu xu ly.
-    """
-    source = str(source_text).strip()
-    if source == "":
-        source = "0"
-
-    if source.isdigit():
-        return int(source), "webcam"
-
-    lower_source = source.lower()
-    if lower_source.startswith(("http://", "https://", "rtsp://")):
-        return source, "ip_camera"
-
-    source_path = Path(source)
-    project_source_path = BASE_DIR / source_path
-    if source_path.exists():
-        return source, "video_file"
-
-    if not source_path.is_absolute() and project_source_path.exists():
-        return str(project_source_path), "video_file"
-
-    return source, "video_file"
 
 
 def draw_text(
@@ -909,11 +812,11 @@ class PostureApp(ctk.CTk):
 
         self.auth_mode_segment = ctk.CTkSegmentedButton(
             self.auth_card,
-            values=["Dang nhap", "Dang ky"],
+            values=["Đăng nhập", "Đăng ký"],
             command=self.on_auth_mode_changed,
         )
         self.auth_mode_segment.grid(row=2, column=0, padx=28, pady=(0, 18), sticky="ew")
-        self.auth_mode_segment.set("Dang nhap")
+        self.auth_mode_segment.set("Đăng nhập")
 
         self.auth_form_frame = ctk.CTkFrame(self.auth_card, fg_color="transparent")
         self.auth_form_frame.grid(row=3, column=0, padx=28, pady=(0, 20), sticky="ew")
@@ -932,8 +835,8 @@ class PostureApp(ctk.CTk):
         self.render_login_form()
 
     def on_auth_mode_changed(self, selected_mode: str) -> None:
-        """Chuyen giua form dang nhap va dang ky."""
-        if selected_mode == "Dang ky":
+        """Chuyển giữa form đăng nhập và đăng ký."""
+        if selected_mode == "Đăng ký":
             self.render_register_form()
         else:
             self.render_login_form()
@@ -990,13 +893,13 @@ class PostureApp(ctk.CTk):
         return entry
 
     def render_login_form(self) -> None:
-        """Tao form dang nhap."""
+        """Tạo form đăng nhập."""
         self.clear_auth_form()
         self.login_email_entry = self.add_auth_entry(0, "Email")
-        self.login_password_entry = self.add_auth_entry(2, "Mat khau", show="*")
+        self.login_password_entry = self.add_auth_entry(2, "Mật khẩu", show="*")
         self.login_button = ctk.CTkButton(
             self.auth_form_frame,
-            text="Dang nhap",
+            text="Đăng nhập",
             height=38,
             command=self.handle_login,
         )
@@ -1004,23 +907,23 @@ class PostureApp(ctk.CTk):
         self.login_password_entry.bind("<Return>", lambda _event: self.handle_login())
 
     def render_register_form(self) -> None:
-        """Tao form dang ky va xac thuc OTP."""
+        """Tạo form đăng ký và xác thực OTP."""
         self.clear_auth_form()
         self.register_email_entry = self.add_auth_entry(0, "Email")
-        self.register_password_entry = self.add_auth_entry(2, "Mat khau", show="*")
-        self.register_confirm_entry = self.add_auth_entry(4, "Nhap lai mat khau", show="*")
+        self.register_password_entry = self.add_auth_entry(2, "Mật khẩu", show="*")
+        self.register_confirm_entry = self.add_auth_entry(4, "Nhập lại mật khẩu", show="*")
         self.send_otp_button = ctk.CTkButton(
             self.auth_form_frame,
-            text="Gui OTP ve email",
+            text="Gửi OTP về email",
             height=38,
             command=self.handle_send_registration_otp,
         )
         self.send_otp_button.grid(row=6, column=0, pady=(2, 14), sticky="ew")
 
-        self.otp_entry = self.add_auth_entry(7, "Ma OTP")
+        self.otp_entry = self.add_auth_entry(7, "Mã OTP")
         self.verify_otp_button = ctk.CTkButton(
             self.auth_form_frame,
-            text="Xac thuc va dang nhap",
+            text="Xác thực và đăng nhập",
             height=38,
             command=self.handle_verify_registration_otp,
             state="disabled",
@@ -1029,7 +932,7 @@ class PostureApp(ctk.CTk):
         self.otp_entry.bind("<Return>", lambda _event: self.handle_verify_registration_otp())
 
     def handle_login(self) -> None:
-        """Dang nhap tai khoan da xac thuc email."""
+        """Đăng nhập tài khoản đã xác thực email."""
         if self.auth_busy:
             return
         email = self.login_email_entry.get()
@@ -1044,25 +947,25 @@ class PostureApp(ctk.CTk):
             self.set_auth_status(str(exc), error=True)
             return
         except Exception as exc:
-            self.set_auth_status(f"Khong dang nhap duoc: {exc}", error=True)
+            self.set_auth_status(f"Không thể đăng nhập: {exc}", error=True)
             return
 
         self.current_user_id = user_id
         self.start_authenticated_app()
 
     def handle_send_registration_otp(self) -> None:
-        """Tao tai khoan tam va gui OTP xac thuc qua email."""
+        """Tạo tài khoản tạm và gửi OTP xác thực qua email."""
         if self.auth_busy:
             return
         email = self.register_email_entry.get()
         password = self.register_password_entry.get()
         confirm_password = self.register_confirm_entry.get()
         if password != confirm_password:
-            self.set_auth_status("Mat khau nhap lai khong khop.", error=True)
+            self.set_auth_status("Mật khẩu nhập lại không khớp.", error=True)
             return
 
         self.set_auth_busy(True)
-        self.set_auth_status("Dang gui OTP, vui long cho...")
+        self.set_auth_status("Đang gửi OTP, vui lòng chờ...")
 
         def worker() -> None:
             try:
@@ -1086,19 +989,19 @@ class PostureApp(ctk.CTk):
         normalized_email = email.strip().lower()
         self.pending_register_email = normalized_email
         self.verify_otp_button.configure(state="normal")
-        self.set_auth_status("Da gui OTP. Hay kiem tra email va nhap ma xac thuc.")
+        self.set_auth_status("Đã gửi OTP. Vui lòng kiểm tra email và nhập mã xác thực.")
         messagebox.showinfo(
-            "Gui OTP thanh cong",
-            f"Ma OTP da duoc gui den email:\n{normalized_email}\n\n"
-            "Hay kiem tra Hop thu den hoac Spam.",
+            "Gửi OTP thành công",
+            f"Mã OTP đã được gửi đến email:\n{normalized_email}\n\n"
+            "Vui lòng kiểm tra hộp thư đến hoặc spam.",
         )
 
     def handle_verify_registration_otp(self) -> None:
-        """Xac thuc OTP dang ky va vao app."""
+        """Xác thực OTP đăng ký và vào app."""
         email = self.pending_register_email or self.register_email_entry.get()
         otp = self.otp_entry.get().strip()
         if not otp:
-            self.set_auth_status("Hay nhap ma OTP.", error=True)
+            self.set_auth_status("Hãy nhập mã OTP.", error=True)
             return
         try:
             connection = get_db_connection()
@@ -1110,14 +1013,14 @@ class PostureApp(ctk.CTk):
             self.set_auth_status(str(exc), error=True)
             return
         except Exception as exc:
-            self.set_auth_status(f"Khong xac thuc duoc OTP: {exc}", error=True)
+            self.set_auth_status(f"Không xác thực được OTP: {exc}", error=True)
             return
 
         self.current_user_id = user_id
         self.start_authenticated_app()
 
     def start_authenticated_app(self) -> None:
-        """Khoi tao giao dien posture sau khi nguoi dung dang nhap."""
+        """Khởi tạo giao diện ứng dụng sau khi người dùng đăng nhập."""
         self.config_data = dict(DEFAULT_CONFIG_DATA)
         self.clear_root_widgets()
         self.create_widgets()
@@ -1126,11 +1029,11 @@ class PostureApp(ctk.CTk):
         self.update_counter_labels()
 
     def logout_current_user(self) -> None:
-        """Dang xuat tai khoan hien tai va quay ve man hinh dang nhap."""
+        """Đăng xuất tài khoản hiện tại và quay về màn hình đăng nhập."""
         if self.is_running:
             confirmed = messagebox.askyesno(
-                "Dang xuat",
-                "Camera/video dang chay. Ban co muon dung phien hien tai va dang xuat khong?",
+                "Đăng xuất",
+                "Camera/video đang chạy. Bạn có muốn dừng phiên hiện tại và đăng xuất không?",
             )
             if not confirmed:
                 return
@@ -1384,7 +1287,7 @@ class PostureApp(ctk.CTk):
 
         self.logout_button = ctk.CTkButton(
             action_section,
-            text="Dang xuat",
+            text="Đăng xuất",
             command=self.logout_current_user,
             height=34,
             fg_color=THEME["surface_muted"],
@@ -2209,17 +2112,14 @@ class PostureApp(ctk.CTk):
             config = self.get_hgb_mode_config()
             model_id = str(config["model_id"])
             feature_set = str(config["feature_set"])
-            model_path = resource_path(Path("models") / "registry" / model_id / "model.pkl")
-
-            if not model_path.exists():
-                raise FileNotFoundError(f"Khong tim thay model HGB: {model_path}")
 
             if self.hgb_model is None or self.hgb_model_id != model_id:
+                hgb_model, model_path = load_hgb_model(model_id)
                 print(f"Dang load HGB mode: {self.normalize_prediction_mode(self.prediction_mode)}")
                 print(f"model_id={model_id}")
                 print(f"feature_set={feature_set}")
                 print(f"model_path={model_path}")
-                self.hgb_model = joblib.load(model_path)
+                self.hgb_model = hgb_model
                 self.hgb_model_id = model_id
                 self.hgb_feature_set = feature_set
 
@@ -2240,16 +2140,7 @@ class PostureApp(ctk.CTk):
 
     def load_hgb_threshold(self, model_id: str, fallback_threshold: float) -> float:
         """Doc nguong calibrated cua HGB tu registry theo model id."""
-        threshold_path = resource_path(Path("models") / "registry" / model_id / "threshold.json")
-        if not threshold_path.exists():
-            return fallback_threshold
-
-        try:
-            payload = json.loads(threshold_path.read_text(encoding="utf-8"))
-            return float(payload.get("default", fallback_threshold))
-        except Exception as exc:
-            print(f"WARNING: Khong doc duoc threshold HGB, dung fallback {fallback_threshold}: {exc}")
-            return fallback_threshold
+        return load_hgb_threshold_from_registry(model_id, fallback_threshold)
 
     def reset_session_counters(self) -> None:
         """Reset cac bien dem cho phien camera moi."""
@@ -2823,44 +2714,25 @@ class PostureApp(ctk.CTk):
 
     def infer_current_view_angle(self) -> str:
         """Suy ra goc quay tu ten file video; webcam/IP camera tam dung unknown."""
-        if self.current_source_type != "video_file":
-            return "unknown"
-
-        source_text = str(self.config_data.get("nguonCamera", "")).lower()
-        source_name = Path(source_text).name.lower()
-        if "side_90" in source_name:
-            return "side_90"
-        if "side_30" in source_name:
-            return "side_30"
-        if "front" in source_name:
-            return "front"
-        return "unknown"
+        return infer_view_angle_from_source(
+            str(self.config_data.get("nguonCamera", "")),
+            self.current_source_type,
+        )
 
     def build_landmark_frame_dataframe(self, landmarks: Any) -> pd.DataFrame:
         """Tao DataFrame 1 dong tu MediaPipe landmarks cho feature_schema."""
-        row: dict[str, Any] = {}
-        for index, landmark in enumerate(landmarks[:NUM_POSE_LANDMARKS]):
-            row[f"landmark_{index}_x"] = float(landmark.x)
-            row[f"landmark_{index}_y"] = float(landmark.y)
-            row[f"landmark_{index}_z"] = float(landmark.z)
-
-        row.update(
-            {
-                "source_video": str(self.config_data.get("nguonCamera", "")),
-                "frame_index": int(self.frame_index),
-                "timestamp_sec": float(
-                    self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-                    if self.cap is not None and self.current_source_type == "video_file"
-                    else max(0.0, time.time() - self.session_start_time.timestamp())
-                    if self.session_start_time is not None
-                    else 0.0
-                ),
-                "sample_fps": 0.0,
-                "video_fps": float(self.cap.get(cv2.CAP_PROP_FPS)) if self.cap is not None else 0.0,
-                "participant_id": "unknown",
-                "view_angle": self.infer_current_view_angle(),
-                "camera_type": self.current_source_type,
-            }
+        return build_hgb_landmark_frame_dataframe(
+            landmarks,
+            source_text=str(self.config_data.get("nguonCamera", "")),
+            frame_index=self.frame_index,
+            cap=self.cap,
+            source_type=self.current_source_type,
+            session_start_timestamp=(
+                self.session_start_time.timestamp()
+                if self.session_start_time is not None
+                else None
+            ),
+            view_angle=self.infer_current_view_angle(),
         )
         return pd.DataFrame([row])
 
@@ -2904,11 +2776,11 @@ class PostureApp(ctk.CTk):
             return "KHONG_PHAT_HIEN_NGUOI", None, None, None, results, None, []
 
         frame_df = self.build_landmark_frame_dataframe(landmarks)
-        model_input, _ = build_feature_matrix(frame_df, self.hgb_feature_set)
-        if hasattr(self.hgb_model, "predict_proba"):
-            raw_prob_incorrect = float(self.hgb_model.predict_proba(model_input)[0, 1])
-        else:
-            raw_prob_incorrect = float(self.hgb_model.predict(model_input)[0])
+        raw_prob_incorrect = predict_hgb_probability(
+            self.hgb_model,
+            frame_df,
+            self.hgb_feature_set,
+        )
 
         self.probability_window.append(raw_prob_incorrect)
         prob_incorrect = float(np.mean(self.probability_window))
